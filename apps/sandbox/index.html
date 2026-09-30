@@ -8,16 +8,19 @@
     <style>
       :root { color-scheme: dark; }
       html, body { margin: 0; height: 100%; background: #14121a; color: #eee; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      #app { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
-      #stage { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #2c2838; max-width: 100%; }
-      #stage canvas { display: block; max-width: 100%; height: auto; }
-      #hud { display: grid; grid-template-columns: repeat(4, minmax(120px, auto)); gap: 4px 24px; }
+      #app { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 16px; }
+      #stage { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #2c2838; max-width: 100%; touch-action: none; }
+      #stage canvas { display: block; max-width: 100%; height: auto; cursor: grab; }
+      #stage canvas.dragging { cursor: grabbing; }
+      #hud { display: grid; grid-template-columns: repeat(4, minmax(150px, auto)); gap: 2px 24px; }
       #hud b { color: #9fe870; font-weight: 600; }
-      .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-      button { font: inherit; background: #262233; color: #eee; border: 1px solid #3b3550; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-      button:hover { background: #312b43; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+      button, select { font: inherit; background: #262233; color: #eee; border: 1px solid #3b3550; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+      button:hover, select:hover { background: #312b43; }
       #verdict.ok { color: #9fe870; } #verdict.bad { color: #ff6b6b; }
-      .keys { color: #a39cb8; text-align: center; }
+      #error { color: #ff6b6b; }
+      .keys { color: #a39cb8; text-align: center; max-width: 900px; }
+      @media (max-width: 720px) { #hud { grid-template-columns: repeat(2, minmax(120px, auto)); } }
     </style>
   </head>
   <body>
@@ -25,13 +28,14 @@
       <div id="stage"></div>
       <div id="hud"></div>
       <div class="row">
+        <label>Scene <select id="scene"></select></label>
         <button id="pause">Pause (P)</button>
         <button id="stepOnce">Step 1 tick (.)</button>
         <button id="verify">Verify determinism (V)</button>
         <button id="restart">Restart (R)</button>
-        <span id="verdict"></span>
       </div>
-      <div class="keys">Space: spawn · ←/→: push · Enter: kick · interpolation <b id="interp">on</b> (I)</div>
+      <div class="row"><span id="verdict"></span><span id="error"></span></div>
+      <div class="keys" id="keys"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

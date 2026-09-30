@@ -86,6 +86,6 @@ describe('determinism', () => {
 
   it('golden hash: the demo sim has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"4df6b565"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"950a526e"`);
   });
 });

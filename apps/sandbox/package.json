@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gumfire/render": "workspace:*",
     "@gumfire/sim": "workspace:*",
     "pixi.js": "^8.21.0"
   },

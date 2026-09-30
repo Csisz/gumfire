@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:trig": "node tools/gen-trig-table.mjs",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "gen:maps": "node tools/gen-test-maps.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -4,6 +4,8 @@ export * from './core/hash.js';
 export * from './core/rng.js';
 export * from './core/input.js';
 export * from './core/clone.js';
+export * from './core/serialize.js';
+export * from './terrain/terrain.js';
 export type { SimEvent } from './core/events.js';
 export * from './state/gameState.js';
 export { step } from './step.js';
