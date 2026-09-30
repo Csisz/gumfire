@@ -3,13 +3,50 @@ import type { SimEvent } from './core/events.js';
 import { sanitizeInput, type InputFrame } from './core/input.js';
 import { MAX_BODIES, makeBody, stepBodies, wakeBodiesInRect } from './physics/body.js';
 import { MAX_CHARACTERS, makeCharacter, stepCharacter } from './character/character.js';
+import { rollWind } from './environment/wind.js';
+import { makeProjectile, stepProjectile } from './weapons/projectile.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
 import { Mat } from './terrain/terrain.js';
 import { SUB } from './core/units.js';
+import { ilength } from './core/trig.js';
 
 /** Hard cap on commands applied per tick (protects against hostile or corrupt input). */
 export const MAX_COMMANDS_PER_TICK = 32;
+export const MAX_PROJECTILES = 64;
+
+function stepProjectiles(state: GameState, events: SimEvent[]): void {
+  const t = state.terrain!;
+  const keep = [];
+  for (const p of state.projectiles) {
+    const def = state.weapons[p.weapon]!;
+    const out = stepProjectile(p, def, t, state.characters, state.wind, state.waterY);
+    switch (out.kind) {
+      case 'flying':
+        keep.push(p);
+        break;
+      case 'explode':
+        events.push({ type: 'Exploded', tick: state.tick, projectile: p.id, weapon: p.weapon, x: out.x, y: out.y, radius: def.explosionRadius, hit: out.hit, characterId: out.characterId });
+        // M5: the blast carves terrain; damage and knockback arrive at M6.
+        if (def.carve && def.explosionRadius > 0) terrainEdit(state, carveCircle(t, out.x, out.y, def.explosionRadius), 'explosion', events);
+        break;
+      case 'splash':
+        events.push({ type: 'ProjectileSplashed', tick: state.tick, id: p.id, x: out.x, y: state.waterY });
+        break;
+      case 'lost':
+        events.push({ type: 'ProjectileLost', tick: state.tick, id: p.id });
+        break;
+    }
+  }
+  state.projectiles = keep;
+}
+
+function terrainEdit(state: GameState, r: EditRect | null, cause: 'carve' | 'tunnel' | 'girder' | 'explosion', events: SimEvent[]): void {
+  if (!r) return;
+  wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
+  // characters check their support every tick, so they need no explicit wake
+  events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
+}
 
 /**
  * Advance the simulation by exactly one tick (20 ms). Pure apart from mutating `state`.
@@ -33,10 +70,19 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
   //    receives input; the others idle, fall, land and drown on their own.
   if (state.terrain) {
     for (const c of state.characters) {
-      stepCharacter(c, state.terrain, state.waterY, state.tick, c.id === state.activeCharacter, input, state.lastInput, events);
+      const weapon = state.weapons[c.weapon] ?? null;
+      const power = stepCharacter(c, state.terrain, state.waterY, state.tick, c.id === state.activeCharacter, input, state.lastInput, events, weapon);
+      if (power >= 0 && weapon && state.projectiles.length < MAX_PROJECTILES) {
+        const id = state.nextProjectileId++;
+        const p = makeProjectile(id, c.weapon, weapon, c, power);
+        state.projectiles.push(p);
+        events.push({ type: 'ProjectileFired', tick: state.tick, id, weapon: c.weapon, owner: c.id, power, speed: ilength(p.vx, p.vy), x: p.x >> 8, y: p.y >> 8 });
+      }
     }
   }
-  // 4. rope · 5. projectiles · 6. triggers · 7. explosions (M6+)
+  // 4. rope (M13)
+  // 5. projectiles + 6. triggers (impact) + 7. explosions
+  if (state.terrain && state.projectiles.length > 0) stepProjectiles(state, events);
 
   // 8. physics + 9. water
   if (state.terrain && state.bodies.length > 0) {
@@ -67,6 +113,22 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
     }
     return;
   }
+  if (cmd.type === 'selectWeapon') {
+    const c = state.characters.find((x) => x.id === state.activeCharacter);
+    if (c && cmd.index < state.weapons.length && c.state !== 'charging' && c.weapon !== cmd.index) {
+      c.weapon = cmd.index;
+      events.push({ type: 'WeaponSelected', tick: state.tick, id: c.id, weapon: cmd.index });
+    }
+    return;
+  }
+  if (cmd.type === 'debugSetWind' || cmd.type === 'debugRollWind') {
+    const w = cmd.type === 'debugSetWind' ? cmd.wind : rollWind(state.rng.wind, state.wind);
+    if (w !== state.wind) {
+      state.wind = w;
+      events.push({ type: 'WindChanged', tick: state.tick, wind: w });
+    }
+    return;
+  }
   if (cmd.type === 'debugSpawn') {
     if (state.bodies.length >= MAX_BODIES) return;
     const id = state.nextBodyId++;
@@ -90,9 +152,5 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
       cause = 'girder';
       break;
   }
-  if (r) {
-    wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
-    // characters check their support every tick, so they need no explicit wake
-    events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
-  }
+  terrainEdit(state, r, cause, events);
 }

@@ -5,6 +5,8 @@ import { RNG_STREAMS, createStreams, type RngStreams } from '../core/rng.js';
 import { fromJson, toJson } from '../core/serialize.js';
 import type { Body } from '../physics/body.js';
 import type { Character } from '../character/character.js';
+import { compileWeapons, type WeaponDef, type WeaponJson } from '../weapons/definition.js';
+import type { Projectile } from '../weapons/projectile.js';
 import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../terrain/terrain.js';
 
 /**
@@ -13,7 +15,7 @@ import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../ter
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 4;
+  schema: 5;
   seed: number;
   tick: number;
   rng: RngStreams;
@@ -30,6 +32,14 @@ export interface GameState {
   nextCharacterId: number;
   /** Id of the character receiving input; 0 = none. */
   activeCharacter: number;
+  /** Compiled weapon set for this match (index = weapon id in inputs, events, commands). */
+  weapons: WeaponDef[];
+  /** Hash of the weapon set, computed once (the set never changes during a match). */
+  weaponsHash: number;
+  projectiles: Projectile[];
+  nextProjectileId: number;
+  /** −100..100, positive blows right. */
+  wind: number;
 }
 
 export interface MapSpec {
@@ -43,12 +53,20 @@ export interface MapSpec {
 export interface GameConfig {
   seed: number;
   map?: MapSpec;
+  /** Authored weapon data (usually `@gumfire/content`'s WEAPONS); compiled at creation. */
+  weapons?: readonly WeaponJson[];
+  /** Starting wind; default 0. */
+  wind?: number;
+}
+
+export function hashWeapons(defs: readonly WeaponDef[]): number {
+  return new Hasher().str(JSON.stringify(defs)).digest();
 }
 
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
   return {
-    schema: 4,
+    schema: 5,
     seed,
     tick: 0,
     rng: createStreams(seed),
@@ -60,7 +78,16 @@ export function createGame(config: GameConfig): GameState {
     characters: [],
     nextCharacterId: 1,
     activeCharacter: 0,
+    ...weaponState(config.weapons ?? []),
+    projectiles: [],
+    nextProjectileId: 1,
+    wind: Math.max(-100, Math.min(100, Math.trunc(config.wind ?? 0))),
   };
+}
+
+function weaponState(list: readonly WeaponJson[]): { weapons: WeaponDef[]; weaponsHash: number } {
+  const weapons = compileWeapons(list);
+  return { weapons, weaponsHash: hashWeapons(weapons) };
 }
 
 /** Canonical hash of the full state. Field order here IS the canonical order. */
@@ -78,9 +105,11 @@ export function hashState(s: GameState): number {
   h.int(s.nextCharacterId).int(s.activeCharacter).u32(s.characters.length);
   for (const c of s.characters) {
     h.int(c.id).int(c.team).str(c.state).int(c.stateTicks).int(c.facing).int(c.aim).int(c.aimHeld);
-    h.int(c.hp).int(c.jumpKind).int(c.lastImpact).bool(c.fallImmune);
+    h.int(c.hp).int(c.jumpKind).int(c.lastImpact).bool(c.fallImmune).int(c.weapon).int(c.power);
     hashBody(h, c.body);
   }
+  h.u32(s.weaponsHash).int(s.wind).int(s.nextProjectileId).u32(s.projectiles.length);
+  for (const p of s.projectiles) h.int(p.id).int(p.weapon).int(p.owner).int(p.x).int(p.y).int(p.vx).int(p.vy).int(p.age).int(p.windRem);
   return h.digest();
 }
 
@@ -99,6 +128,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 4) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 5) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

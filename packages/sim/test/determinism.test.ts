@@ -11,7 +11,7 @@ import {
   type Replay,
   type TimedCommand,
 } from '../src/index.js';
-import { arenaMap } from './helpers.js';
+import { ROCKET_JSON, arenaMap } from './helpers.js';
 
 /**
  * Scripted session on the physics arena: bodies are thrown in, terrain is carved under them,
@@ -27,6 +27,7 @@ function scriptedCommands(ticks: number): TimedCommand[] {
     if (tick % 120 === 60) out.push({ tick, cmd: { type: 'debugCarve', x: 100 + ((tick * 53) % 1000), y: 505, r: 30 + (tick % 20) } });
     if (tick % 300 === 150) out.push({ tick, cmd: { type: 'debugGirder', x: 200 + (tick % 700), y: 380, w: 96, h: 12 } });
     if (tick % 400 === 200) out.push({ tick, cmd: { type: 'debugTunnel', x0: 300, y0: 520, x1: 600, y1: 600, r: 9 } });
+    if (tick % 300 === 0) out.push({ tick, cmd: { type: 'debugRollWind' } });
   }
   return out;
 }
@@ -38,13 +39,18 @@ function scriptedInputs(ticks: number): number[] {
     if (k < 40) return Btn.Right;
     if (k === 40 || k === 141) return Btn.Jump;
     if (k >= 101 && k < 141) return Btn.Left;
-    if (k >= 201) return Btn.Up;
+    if (k >= 200 && k < 214) return Btn.Up; // aim while standing again after the jump
+    if (k >= 215 && k < 238) return Btn.Fire; // charge 23 ticks, fire on release
     return 0;
   });
 }
 
 const TICKS = 3000;
-const REPLAY: Replay = { config: { seed: 20260930, map: arenaMap() }, inputs: scriptedInputs(TICKS), commands: scriptedCommands(TICKS) };
+const REPLAY: Replay = {
+  config: { seed: 20260930, map: arenaMap(), weapons: [ROCKET_JSON], wind: 20 },
+  inputs: scriptedInputs(TICKS),
+  commands: scriptedCommands(TICKS),
+};
 
 function runLive(until: number) {
   const s = createGame(REPLAY.config);
@@ -68,7 +74,8 @@ describe('determinism (physics arena)', () => {
     expect(a.checkpoints.length).toBe(60);
     expect(a.checkpoints).toEqual(b.checkpoints);
     expect(a.state.bodies.length + a.state.nextBodyId).toBeGreaterThan(10); // the scenario really exercised bodies
-    expect(a.state.characters[0]!.state).not.toBe('dead'); // …and a live, controlled character
+    // …a controlled character that fired rockets (its own craters eventually drown it — fine)
+    expect(a.state.nextProjectileId).toBeGreaterThan(5);
   });
 
   it('one changed command changes the outcome', () => {
@@ -123,6 +130,6 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"bf8b18a8"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"aa720d93"`);
   });
 });

@@ -5,6 +5,7 @@ import { degToAngle } from '../core/trig.js';
 import { isSupported, overlapsDisc } from '../physics/collision.js';
 import { findFreeSpot, makeBody, stepBody, type Body } from '../physics/body.js';
 import type { TerrainState } from '../terrain/terrain.js';
+import type { WeaponDef } from '../weapons/definition.js';
 
 /**
  * Character controller (plan §10). A character is a disc of radius 9 px.
@@ -15,7 +16,7 @@ import type { TerrainState } from '../terrain/terrain.js';
  * Positions are subpixels; on the ground they sit exactly on the pixel centre.
  */
 
-export type CharState = 'idle' | 'walk' | 'jumpPrep' | 'air' | 'landing' | 'drowning' | 'dead';
+export type CharState = 'idle' | 'walk' | 'jumpPrep' | 'charging' | 'air' | 'landing' | 'drowning' | 'dead';
 
 export interface Character {
   id: number;
@@ -41,6 +42,10 @@ export interface Character {
    * too (M6: a blast's damage already includes the throw — classic, documented behaviour).
    */
   fallImmune: boolean;
+  /** Selected weapon (index into `state.weapons`). */
+  weapon: number;
+  /** Charge accumulated while holding Fire, in ticks (0..chargeTicks). */
+  power: number;
 }
 
 export const CHAR = {
@@ -91,6 +96,8 @@ export function makeCharacter(id: number, team: number, px: number, py: number):
     jumpKind: 0,
     lastImpact: 0,
     fallImmune: true,
+    weapon: 0,
+    power: 0,
   };
 }
 
@@ -109,7 +116,7 @@ function placeAt(c: Character, px: number, py: number): void {
   c.body.vy = 0;
 }
 
-const grounded = (s: CharState) => s === 'idle' || s === 'walk' || s === 'jumpPrep' || s === 'landing';
+const grounded = (s: CharState) => s === 'idle' || s === 'walk' || s === 'jumpPrep' || s === 'charging' || s === 'landing';
 
 /** Fall damage for a landing with this normal impact speed (subpixels/tick). */
 export function fallDamage(impact: number): number {
@@ -148,6 +155,8 @@ function startFall(c: Character, vx: number, vy: number): void {
 /**
  * Advance one character one tick. `input`/`prevInput` apply only when `controlled`.
  * Order: survival checks → state logic (ground or air) → water/bounds.
+ * Returns the charge (in ticks) when the character fires this tick, otherwise −1; the caller
+ * spawns the projectile (the controller does not own the projectile list).
  */
 export function stepCharacter(
   c: Character,
@@ -158,15 +167,16 @@ export function stepCharacter(
   input: InputFrame,
   prevInput: InputFrame,
   events: SimEvent[],
-): void {
-  if (c.state === 'dead') return;
+  weapon: WeaponDef | null = null,
+): number {
+  if (c.state === 'dead') return -1;
   c.stateTicks++;
 
   // ---- drowning: the body sinks; the character dies when it is gone
   if (c.state === 'drowning') {
     const res = stepBody(c.body, t, waterY, tick, []);
     if (res.removed) die(c, tick, 'drowned', events);
-    return;
+    return -1;
   }
 
   // ---- aim works in every living state for the controlled character
@@ -179,21 +189,32 @@ export function stepCharacter(
     } else c.aimHeld = 0;
   }
 
-  if (grounded(c.state)) stepGround(c, t, controlled, input, prevInput, tick, events);
+  let fired = -1;
+  if (grounded(c.state)) fired = stepGround(c, t, controlled, input, prevInput, tick, events, weapon);
   else stepAir(c, t, waterY, tick, events);
 
   const after = c.state as CharState; // the step functions above may have changed it
-  if (after === 'dead' || after === 'drowning') return;
+  if (after === 'dead' || after === 'drowning') return fired;
   // ---- water and bounds while on the ground (air is handled by the body step)
   const py = charPy(c), px = charPx(c);
   if (waterY > 0 && py >= waterY) {
     enterWater(c, tick, events);
-    return;
+    return fired;
   }
   if (px < -200 || px > t.width + 200 || py > t.height + 200) die(c, tick, 'lost', events);
+  return fired;
 }
 
-function stepGround(c: Character, t: TerrainState, controlled: boolean, input: InputFrame, prevInput: InputFrame, tick: number, events: SimEvent[]): void {
+function stepGround(
+  c: Character,
+  t: TerrainState,
+  controlled: boolean,
+  input: InputFrame,
+  prevInput: InputFrame,
+  tick: number,
+  events: SimEvent[],
+  weapon: WeaponDef | null,
+): number {
   const r = c.body.radius;
   let px = charPx(c), py = charPy(c);
 
@@ -207,14 +228,32 @@ function stepGround(c: Character, t: TerrainState, controlled: boolean, input: I
     }
   }
   if (!isSupported(t, px, py, r)) {
+    // losing the ground while charging drops the shot (classic: falling ends control)
+    c.power = 0;
     startFall(c, 0, 0);
-    return;
+    return -1;
   }
 
   switch (c.state) {
     case 'landing':
       if (c.stateTicks >= CHAR.landingTicks) setState(c, 'idle');
-      return;
+      return -1;
+    case 'charging': {
+      // Hold Fire to charge; release (or full charge) fires. Losing control cancels.
+      if (!controlled || !weapon) {
+        c.power = 0;
+        setState(c, 'idle');
+        return -1;
+      }
+      if (isDown(input, Btn.Fire) && c.power < weapon.chargeTicks) {
+        c.power++;
+        if (c.power < weapon.chargeTicks) return -1;
+      }
+      const power = c.power;
+      c.power = 0;
+      setState(c, 'idle');
+      return power;
+    }
     case 'jumpPrep':
       if (controlled && pressed(prevInput, input, Btn.Jump)) c.jumpKind = 2; // double tap → backflip
       if (c.stateTicks >= CHAR.jumpPrepTicks) {
@@ -223,32 +262,38 @@ function stepGround(c: Character, t: TerrainState, controlled: boolean, input: I
         c.jumpKind = 0;
         startFall(c, j.vx * c.facing, j.vy);
       }
-      return;
+      return -1;
     case 'idle':
     case 'walk': {
       if (!controlled) {
         if (c.state === 'walk') setState(c, 'idle');
-        return;
+        return -1;
+      }
+      if (weapon && pressed(prevInput, input, Btn.Fire)) {
+        c.power = 1;
+        setState(c, 'charging');
+        return -1;
       }
       if (pressed(prevInput, input, Btn.Jump)) {
         c.jumpKind = 1;
         setState(c, 'jumpPrep');
-        return;
+        return -1;
       }
       const left = isDown(input, Btn.Left), right = isDown(input, Btn.Right);
       if (left === right) {
         if (c.state === 'walk') setState(c, 'idle');
-        return;
+        return -1;
       }
       const dir = right ? 1 : -1;
       c.facing = dir;
       if (c.state !== 'walk') setState(c, 'walk');
-      if (c.stateTicks % CHAR.walkTicksPerPx !== 0) return;
+      if (c.stateTicks % CHAR.walkTicksPerPx !== 0) return -1;
       const res = walkStep(t, c, dir);
       if (res === 'ledge') startFall(c, CHAR.walkOffVx * dir, 0);
-      return;
+      return -1;
     }
   }
+  return -1;
 }
 
 function stepAir(c: Character, t: TerrainState, waterY: number, tick: number, events: SimEvent[]): void {

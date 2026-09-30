@@ -13,7 +13,13 @@ export type SimCommand =
   /** Place a character (team 0..5) at pixel (x, y); it falls and lands. */
   | { type: 'debugSpawnCharacter'; x: number; y: number; team: number }
   /** Give input control to character `id` (0 = nobody). The turn system replaces this at M7. */
-  | { type: 'debugSelect'; id: number };
+  | { type: 'debugSelect'; id: number }
+  /** The active character selects weapon `index` (a normal player action, not a debug tool). */
+  | { type: 'selectWeapon'; index: number }
+  /** Set the wind directly (−100..100) — tests and sandbox. */
+  | { type: 'debugSetWind'; wind: number }
+  /** Re-roll the wind from the seeded wind stream, as a new turn will (M7). */
+  | { type: 'debugRollWind' };
 
 /** A command applied at the start of simulation tick `tick` (1-based, the tick being computed). */
 export interface TimedCommand {
@@ -52,6 +58,14 @@ export function sanitizeCommand(c: unknown): SimCommand | null {
     case 'debugSelect':
       if (!isInt(o.id) || !inRange(o.id, 0, 1 << 20)) return null;
       return { type: 'debugSelect', id: o.id };
+    case 'selectWeapon':
+      if (!isInt(o.index) || !inRange(o.index, 0, 63)) return null;
+      return { type: 'selectWeapon', index: o.index };
+    case 'debugSetWind':
+      if (!isInt(o.wind) || !inRange(o.wind, -100, 100)) return null;
+      return { type: 'debugSetWind', wind: o.wind };
+    case 'debugRollWind':
+      return { type: 'debugRollWind' };
     default:
       return null;
   }

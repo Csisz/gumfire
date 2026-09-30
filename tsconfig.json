@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/sim" },
     { "path": "packages/render" },
+    { "path": "packages/content" },
     { "path": "apps/sandbox" }
   ]
 }

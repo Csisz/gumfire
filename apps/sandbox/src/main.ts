@@ -28,6 +28,7 @@ import {
   type TimedCommand,
 } from '@gumfire/sim';
 import { BIRTHDAY_THEME, Camera, TerrainView, WaterView } from '@gumfire/render';
+import { WEAPONS } from '@gumfire/content';
 import { FixedStepLoop } from './fixedStepLoop';
 import { loadMap, loadMapIndex, type LoadedMap } from './mapLoader';
 
@@ -35,7 +36,8 @@ import { loadMap, loadMapIndex, type LoadedMap } from './mapLoader';
  * Technical sandbox for the deterministic simulation.
  * - Fixed 50 Hz sim with render interpolation, input + command recording, replay verification.
  * - Terrain from PNG masks (M1), destruction tools (M2), physics bodies (M3),
- *   playable characters (M4): keyboard input is recorded as per-tick input frames.
+ *   playable characters (M4): keyboard input is recorded as per-tick input frames,
+ *   charged shots, projectiles and wind (M5).
  * Every tool action becomes a recorded sim command, so "Verify" replays the session exactly.
  */
 
@@ -116,6 +118,7 @@ function currentInput(): InputFrame {
   if (down('ArrowUp')) f |= Btn.Up;
   if (down('ArrowDown')) f |= Btn.Down;
   if (down('Enter') || down('NumpadEnter')) f |= Btn.Jump;
+  if (down('Space')) f |= Btn.Fire;
   deliveredLastTick = deliveredThisTick;
   return f;
 }
@@ -124,6 +127,7 @@ function simTick(): void {
   prevPos = new Map<string, { x: number; y: number }>();
   for (const b of state.bodies) prevPos.set(`b${b.id}`, { x: b.x, y: b.y });
   for (const c of state.characters) prevPos.set(`c${c.id}`, { x: c.body.x, y: c.body.y });
+  for (const p of state.projectiles) prevPos.set(`p${p.id}`, { x: p.x, y: p.y });
   const input = currentInput();
   if (input) followActive = true;
   recorded.push(input);
@@ -257,6 +261,21 @@ async function main(): Promise<void> {
   const charViews = new Map<number, CharView>();
   const reticle = new Graphics();
   const popups: Array<{ t: Text; age: number }> = [];
+  const projLayer = new Container();
+  const projViews = new Map<number, Container>();
+  /** Render-only particles: trail puffs, explosion sparks, splash drops (never affect the sim). */
+  interface Particle { g: Graphics; x: number; y: number; vx: number; vy: number; age: number; life: number; grav: number }
+  const particles: Particle[] = [];
+  const rings: Array<{ g: Graphics; x: number; y: number; r: number; age: number }> = [];
+  /** Where the camera should look after an explosion, and until when (ms). */
+  let blastFocus: { x: number; y: number; until: number } | null = null;
+  // screen-space wind gauge
+  const windGauge = new Container();
+  const windGfx = new Graphics();
+  const windLabel = new Text({ text: 'WIND', style: { fontFamily: 'ui-monospace, monospace', fontSize: 11, fontWeight: '700', fill: 0x2a1f33 } });
+  windLabel.anchor.set(0.5, 1);
+  windGauge.addChild(windGfx, windLabel);
+  app.stage.addChild(windGauge);
   const preview = new Graphics();
   const camera = new Camera(1920, 696);
   camera.setViewport(size.w, size.h);
@@ -300,6 +319,14 @@ async function main(): Promise<void> {
         case 'CharacterDied':
           if (e.id === state.activeCharacter) selectNext();
           break;
+        case 'Exploded':
+          spawnExplosion(e.x, e.y, e.radius);
+          blastFocus = { x: e.x, y: e.y, until: performance.now() + 700 };
+          break;
+        case 'ProjectileSplashed':
+          spawnSplash(e.x, e.y);
+          blastFocus = { x: e.x, y: e.y, until: performance.now() + 500 };
+          break;
       }
     }
   };
@@ -315,6 +342,13 @@ async function main(): Promise<void> {
     charViews.clear();
     for (const p of popups) p.t.destroy();
     popups.length = 0;
+    for (const v of projViews.values()) v.destroy({ children: true });
+    projViews.clear();
+    for (const p of particles) p.g.destroy();
+    particles.length = 0;
+    for (const r of rings) r.g.destroy();
+    rings.length = 0;
+    blastFocus = null;
     world.removeChildren();
     prevPos.clear();
     recorded = [];
@@ -328,7 +362,7 @@ async function main(): Promise<void> {
   }
 
   function buildMap(m: LoadedMap): void {
-    config = { seed: config.seed, map: m.spec };
+    config = { seed: config.seed, map: m.spec, weapons: WEAPONS, wind: 0 };
     state = createGame(config);
     // The recording starts together with the new state.
     recorded = [];
@@ -340,7 +374,7 @@ async function main(): Promise<void> {
     terrainView = new TerrainView(t, BIRTHDAY_THEME);
     waterView = new WaterView(t.width, t.height, state.waterY);
     // bodies are drawn behind the water so sinking Gumlings disappear into the cocoa
-    world.addChild(terrainView.container, bodyLayer, charLayer, reticle, waterView.container, fxLayer, preview);
+    world.addChild(terrainView.container, bodyLayer, charLayer, reticle, projLayer, waterView.container, fxLayer, preview);
     camera.setWorld(t.width, t.height);
     camera.fitWorld();
     updateKeysHelp();
@@ -354,7 +388,7 @@ async function main(): Promise<void> {
       crater: 'click: crater · [ ]: size',
     };
     $('keys').innerHTML =
-      `<b>Play:</b> ←/→ walk · ↑/↓ aim · Enter jump · Enter×2 backflip · Tab next Gumling<br>` +
+      `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>` +
       `Tool: <b>${names[tool]}</b> — ${how[tool]} · Shift+click girder · right-drag tunnel · N 50 balls · B 200 craters<br>` +
       'Middle-drag / WASD pan · wheel zoom · F fit · L follow · V verify · R restart · P pause · . step';
   }
@@ -443,6 +477,7 @@ async function main(): Promise<void> {
     if (e.code === 'KeyQ') tool = 'crater';
     if (e.code === 'KeyE' || e.code === 'KeyQ' || e.code === 'KeyC') updateKeysHelp();
     if (e.code === 'Tab' && !e.repeat) selectNext();
+    if (e.code === 'KeyX' && !e.repeat) pendingCmds.push({ type: 'debugRollWind' });
     if (e.code === 'KeyL') followActive = !followActive;
     if (e.code === 'KeyF') {
       camera.fitWorld();
@@ -606,12 +641,16 @@ async function main(): Promise<void> {
         camera.panByScreen(dx, dy);
         followActive = false;
       }
-      // follow the active character (presentation only; M8 brings the full camera rules)
+      // Follow priorities (presentation only; M8 brings the full camera rules):
+      // newest projectile → recent explosion → active character.
       const act = state.characters.find((c) => c.id === state.activeCharacter);
-      if (followActive && act && act.state !== 'dead') {
-        const tx = subToPxFloat(act.body.x), ty = subToPxFloat(act.body.y);
-        camera.centerOn(camera.x + (tx - camera.x) * 0.12, camera.y + (ty - camera.y) * 0.12);
-      }
+      const proj = state.projectiles.at(-1);
+      let focus: { x: number; y: number; k: number } | null = null;
+      if (proj) focus = { x: subToPxFloat(proj.x + proj.vx * 12), y: subToPxFloat(proj.y + proj.vy * 12), k: 0.15 };
+      else if (blastFocus && performance.now() < blastFocus.until) focus = { x: blastFocus.x, y: blastFocus.y, k: 0.1 };
+      else if (act && act.state !== 'dead') focus = { x: subToPxFloat(act.body.x), y: subToPxFloat(act.body.y), k: 0.12 };
+      if (proj) followActive = true;
+      if (followActive && focus) camera.centerOn(camera.x + (focus.x - camera.x) * focus.k, camera.y + (focus.y - camera.y) * focus.k);
     }
 
     const tr = camera.transform();
@@ -622,7 +661,10 @@ async function main(): Promise<void> {
     waterView?.update(performance.now());
     drawBodies(alpha);
     drawCharacters(alpha);
+    drawProjectiles(alpha);
+    drawParticles();
     drawPopups();
+    drawWind();
     drawPreview();
     drawHud();
   });
@@ -700,6 +742,19 @@ async function main(): Promise<void> {
         const rx = x + Math.cos(a) * 38 * c.facing, ry = y - Math.sin(a) * 38;
         reticle.circle(rx, ry, 5).stroke({ width: 2, color: 0xe8364f }).circle(rx, ry, 1.5).fill(0xe8364f);
       }
+      if (active && c.state === 'charging') {
+        // power meter: growing dots along the aim, yellow → red
+        const w = state.weapons[c.weapon];
+        const frac = w ? c.power / w.chargeTicks : 0;
+        const a = (c.aim / 4096) * 2 * Math.PI;
+        const n = Math.ceil(frac * 14);
+        for (let k = 1; k <= n; k++) {
+          const d = 14 + k * 4.2;
+          const t = k / 14;
+          const col = (0xff << 16) | (Math.round(220 * (1 - t)) << 8) | 0x20;
+          reticle.circle(x + Math.cos(a) * d * c.facing, y - Math.sin(a) * d, 1.2 + t * 3.2).fill(col);
+        }
+      }
     }
     for (const [id, v] of charViews) {
       if (!alive.has(id)) {
@@ -707,6 +762,117 @@ async function main(): Promise<void> {
         charViews.delete(id);
       }
     }
+  }
+
+  function makeRocketView(): Container {
+    // an original "pepper rocket": red pod, green stem, tiny flame
+    const c = new Container();
+    const flame = new Graphics().poly([-9, 0, -15, -3, -13, 0, -15, 3]).fill(0xffb03a);
+    const pod = new Graphics().ellipse(0, 0, 8, 3.6).fill(0xe8364f).stroke({ width: 1.5, color: OUTLINE });
+    const shine = new Graphics().ellipse(1, -1.4, 4, 0.9).fill({ color: 0xffffff, alpha: 0.55 });
+    const stem = new Graphics().rect(-9, -1.6, 3, 3.2).fill(0x5fbf4a).stroke({ width: 1, color: OUTLINE });
+    c.addChild(flame, pod, shine, stem);
+    return c;
+  }
+
+  function drawProjectiles(alpha: number): void {
+    const alive = new Set<number>();
+    for (const p of state.projectiles) {
+      alive.add(p.id);
+      let v = projViews.get(p.id);
+      if (!v) {
+        v = makeRocketView();
+        projViews.set(p.id, v);
+        projLayer.addChild(v);
+      }
+      const prev = prevPos.get(`p${p.id}`) ?? { x: p.x, y: p.y };
+      const x = subToPxFloat(prev.x + (p.x - prev.x) * alpha);
+      const y = subToPxFloat(prev.y + (p.y - prev.y) * alpha);
+      v.position.set(x, y);
+      v.rotation = Math.atan2(p.vy, p.vx);
+      if (Math.random() < 0.6) spawnParticle(x - Math.cos(v.rotation) * 10, y - Math.sin(v.rotation) * 10, 0xfff1f5, 2.2 + Math.random() * 2, 0, -0.1, 30, 0);
+    }
+    for (const [id, v] of projViews) {
+      if (!alive.has(id)) {
+        v.destroy({ children: true });
+        projViews.delete(id);
+      }
+    }
+  }
+
+  function spawnParticle(x: number, y: number, color: number, size: number, vx: number, vy: number, life: number, grav: number): void {
+    const g = new Graphics().circle(0, 0, size).fill(color);
+    g.position.set(x, y);
+    fxLayer.addChild(g);
+    particles.push({ g, x, y, vx, vy, age: 0, life, grav });
+  }
+
+  function spawnExplosion(x: number, y: number, r: number): void {
+    const g = new Graphics();
+    fxLayer.addChild(g);
+    rings.push({ g, x, y, r, age: 0 });
+    const sugar = [0xffffff, 0xffd23f, 0xff5d8f, 0x4cc9f0];
+    for (let k = 0; k < 26; k++) {
+      const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4.5;
+      spawnParticle(x, y, sugar[k % sugar.length]!, 1.5 + Math.random() * 2, Math.cos(a) * sp, Math.sin(a) * sp - 1.5, 30 + Math.random() * 25, 0.12);
+    }
+    for (let k = 0; k < 10; k++) {
+      const a = Math.random() * Math.PI * 2;
+      spawnParticle(x + Math.cos(a) * r * 0.4, y + Math.sin(a) * r * 0.4, 0xd9c8d3, 6 + Math.random() * 6, Math.cos(a) * 0.6, -0.4, 45, 0);
+    }
+  }
+
+  function spawnSplash(x: number, y: number): void {
+    for (let k = 0; k < 16; k++) {
+      spawnParticle(x + (Math.random() - 0.5) * 10, y, 0x8a5230, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 3, -2 - Math.random() * 3, 40, 0.15);
+    }
+  }
+
+  function drawParticles(): void {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i]!;
+      p.age++;
+      p.vy += p.grav;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.g.position.set(p.x, p.y);
+      p.g.alpha = Math.max(0, 1 - p.age / p.life);
+      if (p.age >= p.life) {
+        p.g.destroy();
+        particles.splice(i, 1);
+      }
+    }
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const r = rings[i]!;
+      r.age++;
+      const t = r.age / 18;
+      r.g.clear();
+      r.g.circle(r.x, r.y, r.r * (0.35 + t * 0.75)).fill({ color: 0xfff6d8, alpha: Math.max(0, 0.85 - t) });
+      r.g.circle(r.x, r.y, r.r * (0.5 + t * 0.7)).stroke({ width: 3, color: 0xff9f1c, alpha: Math.max(0, 1 - t) });
+      if (r.age > 18) {
+        r.g.destroy();
+        rings.splice(i, 1);
+      }
+    }
+  }
+
+  function drawWind(): void {
+    // bottom-right, screen space: arrow segments grow from the centre towards the wind
+    const w = state.wind;
+    const W = 180, H = 16;
+    windGauge.position.set(camera.viewW - W / 2 - 16, camera.viewH - 18);
+    const g = windGfx.clear();
+    g.roundRect(-W / 2, -H / 2, W, H, 6).fill({ color: 0xffffff, alpha: 0.85 }).stroke({ width: 2, color: OUTLINE });
+    g.moveTo(0, -H / 2 + 2).lineTo(0, H / 2 - 2).stroke({ width: 1, color: 0x9a8aa8 });
+    const segs = Math.round((Math.abs(w) / 100) * 10);
+    const dir = Math.sign(w);
+    for (let k = 0; k < segs; k++) {
+      const x0 = dir * (4 + k * 8);
+      const col = k < 4 ? 0x4cc9f0 : k < 7 ? 0xffb03a : 0xe8364f;
+      g.poly([x0, -4, x0 + dir * 6, 0, x0, 4]).fill(col);
+    }
+    windLabel.position.set(0, -H / 2 - 2);
+    windLabel.text = `WIND ${w > 0 ? '→' : w < 0 ? '←' : '·'} ${Math.abs(w)}`;
   }
 
   function drawPopups(): void {
@@ -771,7 +937,8 @@ async function main(): Promise<void> {
         hud.push(
           `Gumling <b>#${act.id}</b> · <b>${act.state}</b>`,
           `hp <b>${act.hp}</b> · facing <b>${act.facing > 0 ? '→' : '←'}</b> · last jump <b>${lastJump}</b>`,
-          `aim <b>${Math.round((act.aim * 360) / 4096)}°</b>`,
+          `aim <b>${Math.round((act.aim * 360) / 4096)}°</b> · weapon <b>${state.weapons[act.weapon]?.name ?? '—'}</b>${act.state === 'charging' ? ` · power <b>${act.power}</b>` : ''}`,
+          `wind <b>${state.wind}</b> · rockets in flight <b>${state.projectiles.length}</b>`,
           `pos <b>${charPx(act)}, ${charPy(act)}</b> · last impact <b>${(act.lastImpact / 256).toFixed(1)} px/t</b>`,
         );
       } else hud.push('Gumling <b>— press C and click to place one</b>');

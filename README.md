@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M4 — character movement** complete (M0 sandbox, M1 terrain, M2 destruction, M3 physics before it). See [`docs/progress`](docs/progress).
+> Status: **M5 — aim, projectile, wind** complete (M0–M4 before it: sandbox, terrain, destruction, physics, characters). See [`docs/progress`](docs/progress).
 
 ## Quick start
 
@@ -16,8 +16,9 @@ pnpm check        # lint + typecheck + tests + build (what CI runs)
 pnpm bench        # crater and physics cost on bundled code
 ```
 
-Sandbox (pick a map). **Play:** C then click places a Gumling; ←/→ walk, ↑/↓ aim, Enter jump,
-Enter×2 backflip, Tab next Gumling, L toggle follow camera. **Tools:** E candy ball (click
+Sandbox (pick a map). **Play:** C then click places a Gumling; ←/→ walk, ↑/↓ aim, hold Space
+to charge and release to fire the Pepper Rocket, Enter jump, Enter×2 backflip, Tab next Gumling,
+X new wind, L toggle follow camera. **Tools:** E candy ball (click
 drop, drag slingshot), Q crater (`[`/`]` size), Shift+click girder, right-drag tunnel, N 50
 balls, B 200 craters. **View:** middle-drag/WASD pan, wheel zoom, F fit. **Sim:** P pause,
 `.` single tick, **V verify determinism**, R restart.
@@ -32,17 +33,20 @@ packages/sim/     PURE deterministic simulation — no DOM, no Pixi, no Math.ran
   src/terrain/    material bitmap, 64×64 chunks, incremental hashing, carve/tunnel/add edits
   src/core/commands.ts  tick-stamped structured input (debug edits now, targets later)
   src/physics/    bodies: collision vs bitmap, substeps, bounce/friction, sleep, water
-  src/character/  character controller: pixel walking, jumps, backflip, fall damage, aim
+  src/character/  character controller: pixel walking, jumps, backflip, fall damage, aim, charge
+  src/weapons/    WeaponJson → WeaponDef compiler, projectiles (flight, wind, impacts)
+  src/environment/ wind
   src/state/      GameState, create/hash/clone/serialise
   src/step.ts     one 20 ms tick, canonical system order
   src/replay.ts   seed + input frames → state + checkpoint hashes
 packages/render/  Pixi views + pure painters: terrain paint, TerrainView, WaterView, Camera
+packages/content/ authored game data: weapons/*.json (compiled by the sim at match start)
 tests/            cross-package tests (lint-rule enforcement)
 tools/            generators (trig tables, test maps), bundled benchmarks
 docs/             ADRs, milestone progress, tuning log
 ```
 
-Planned packages (per the master plan): `content`, `net`, `apps/client`, `apps/server`.
+Planned packages (per the master plan): `net`, `apps/client`, `apps/server`.
 
 ## Architecture in one paragraph
 
@@ -62,7 +66,10 @@ event stream.
 
 ## How to add a weapon
 
-Arrives at M5 (data-driven `WeaponDefinition` JSON + icon + fixture test). See master plan §12.
+1. Add `packages/content/weapons/<id>.json` (see `pepper_rocket.json`; units are px, px/tick,
+   ticks and ratios) and list it in `packages/content/src/index.ts`.
+2. `pnpm test` — the content test compiles every weapon; errors name the offending field.
+3. Only supported categories compile (M5: `ballistic`). See ADR-004 and master plan §12.
 
 ## Testing
 

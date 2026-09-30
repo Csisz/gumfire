@@ -32,6 +32,9 @@ importers:
 
   apps/sandbox:
     dependencies:
+      '@gumfire/content':
+        specifier: workspace:*
+        version: link:../../packages/content
       '@gumfire/render':
         specifier: workspace:*
         version: link:../../packages/render
@@ -45,6 +48,12 @@ importers:
       vite:
         specifier: ^8.3.1
         version: 8.3.1
+
+  packages/content:
+    dependencies:
+      '@gumfire/sim':
+        specifier: workspace:*
+        version: link:../sim
 
   packages/render:
     dependencies:

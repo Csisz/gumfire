@@ -1,0 +1,18 @@
+{
+  "id": "pepper_rocket",
+  "name": "Pepper Rocket",
+  "category": "ballistic",
+  "description": "Spicy, direct, and completely at the mercy of the breeze.",
+  "input": { "mode": "aimCharge" },
+  "launch": { "speedMin": 1.5, "speedMax": 16, "chargeTicks": 60, "muzzleOffset": 14 },
+  "projectile": {
+    "radius": 2,
+    "gravityScale": 1,
+    "windFactor": 1,
+    "triggers": [{ "kind": "impact", "ignoreOwnerTicks": 6 }],
+    "payload": { "explosion": { "radius": 48, "damage": 50, "knockback": 1.0, "carve": true } },
+    "maxLifeTicks": 1500
+  },
+  "ammo": { "default": "inf" },
+  "turn": { "endsTurn": true, "shotsPerTurn": 1 }
+}

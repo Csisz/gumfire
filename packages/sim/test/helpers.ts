@@ -1,4 +1,4 @@
-import { Mat, type MapSpec } from '../src/index.js';
+import { Mat, type MapSpec, type WeaponJson } from '../src/index.js';
 
 /**
  * Physics test arena, 1280×640, water at y=620:
@@ -53,4 +53,35 @@ export function charArenaMap(): MapSpec {
   fill(1100, 1279, 470);
   for (let x = 520; x <= 560; x++) fill(x, x, Math.round(500 - (x - 520) * 2.75));
   return { width, height, mat, waterY: 620 };
+}
+
+/** The Pepper Rocket as authored (kept here so sim tests do not depend on the content package). */
+export const ROCKET_JSON: WeaponJson = {
+  id: 'pepper_rocket',
+  name: 'Pepper Rocket',
+  category: 'ballistic',
+  input: { mode: 'aimCharge' },
+  launch: { speedMin: 1.5, speedMax: 16, chargeTicks: 60, muzzleOffset: 14 },
+  projectile: {
+    radius: 2,
+    gravityScale: 1,
+    windFactor: 1,
+    triggers: [{ kind: 'impact', ignoreOwnerTicks: 6 }],
+    payload: { explosion: { radius: 48, damage: 50, knockback: 1, carve: true } },
+    maxLifeTicks: 1500,
+  },
+  ammo: { default: 'inf' },
+  turn: { endsTurn: true, shotsPerTurn: 1 },
+};
+
+/**
+ * Shooting range, 2400×800, water at 780: flat floor with surface y=700 for x 0..2199,
+ * a pit into the water at x ≥ 2200, and a 1 px wall at x=500 (y 600..699).
+ */
+export function rangeMap(): MapSpec {
+  const width = 2400, height = 800;
+  const mat = new Uint8Array(width * height);
+  for (let x = 0; x < 2200; x++) for (let y = 700; y < height; y++) mat[y * width + x] = Mat.SOIL;
+  for (let y = 600; y < 700; y++) mat[y * width + 500] = Mat.SOIL;
+  return { width, height, mat, waterY: 780 };
 }
