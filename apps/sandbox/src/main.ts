@@ -12,6 +12,7 @@ import {
   createGame,
   getMat,
   hashHex,
+  SETTLE_TICKS,
   hashState,
   hashTerrain,
   markDirtyRect,
@@ -37,7 +38,7 @@ import { loadMap, loadMapIndex, type LoadedMap } from './mapLoader';
  * - Fixed 50 Hz sim with render interpolation, input + command recording, replay verification.
  * - Terrain from PNG masks (M1), destruction tools (M2), physics bodies (M3),
  *   playable characters (M4): keyboard input is recorded as per-tick input frames,
- *   charged shots, projectiles and wind (M5).
+ *   charged shots, projectiles and wind (M5), explosions, pending damage and deaths (M6).
  * Every tool action becomes a recorded sim command, so "Verify" replays the session exactly.
  */
 
@@ -51,7 +52,7 @@ const THROW_PER_PX = 0.08;
 /** Commands fed per tick from the queue (stress tests enqueue hundreds). */
 const CMDS_PER_TICK = 10;
 
-type Tool = 'char' | 'body' | 'crater';
+type Tool = 'char' | 'body' | 'crater' | 'blast';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -69,6 +70,10 @@ let craters = 0;
 let impacts = 0;
 let drowned = 0;
 let lost = 0;
+let deaths = 0;
+let revealed = 0;
+/** Screen shake in px (presentation only). */
+let shake = 0;
 let worstStepMs = 0;
 let worstStepDecay = 0;
 /** Previous-tick positions for interpolation, keyed 'b<id>' (bodies) / 'c<id>' (characters). */
@@ -189,8 +194,15 @@ interface CharView {
   body: Container;
   eyes: Graphics;
   label: Text;
+  /** Small red counter of damage taken but not yet revealed (sandbox debug aid). */
+  pending: Text;
   marker: Graphics;
+  grave: Graphics;
   squash: number;
+  /** HP shown on the label; counts down towards the real value after a reveal. */
+  shownHp: number;
+  flash: number;
+  diedOf: 'drowned' | 'lost' | 'hp' | null;
 }
 
 function makeCharView(colour: number): CharView {
@@ -212,8 +224,23 @@ function makeCharView(colour: number): CharView {
   label.position.set(0, -r - 8);
   const marker = new Graphics().poly([-5, 0, 5, 0, 0, 7]).fill(0xffffff).stroke({ width: 1.5, color: OUTLINE });
   marker.visible = false;
-  root.addChild(body, label, marker);
-  return { root, body, eyes, label, marker, squash: 0 };
+  const pending = new Text({ text: '', style: { fontFamily: 'ui-monospace, monospace', fontSize: 9, fontWeight: '700', fill: 0xffffff, stroke: { color: 0xe8364f, width: 3 } } });
+  pending.anchor.set(0.5, 1);
+  pending.position.set(0, -r - 20);
+  // grave: an original lollipop-stick marker planted where a Gumling popped
+  const grave = new Graphics()
+    .rect(-1.5, -6, 3, 16)
+    .fill(0xfff6ea)
+    .stroke({ width: 1.2, color: OUTLINE })
+    .circle(0, -11, 7)
+    .fill(colour)
+    .stroke({ width: 2, color: OUTLINE })
+    .moveTo(-4, -13)
+    .arc(0, -11, 4, Math.PI, Math.PI * 2.4)
+    .stroke({ width: 1.4, color: 0xffffff, alpha: 0.8 });
+  grave.visible = false;
+  root.addChild(body, grave, label, pending, marker);
+  return { root, body, eyes, label, pending, marker, grave, squash: 0, shownHp: 100, flash: 0, diedOf: null };
 }
 
 function drawEyes(g: Graphics, facing: number, mode: 'open' | 'squint' | 'x'): void {
@@ -240,6 +267,7 @@ function viewSize(): { w: number; h: number } {
 /** Debug hook for automated browser checks (sandbox only). */
 (globalThis as Record<string, unknown>).__sandbox = {
   recorded: () => recorded,
+  commands: () => recordedCmds,
   state: () => state,
 };
 
@@ -279,6 +307,11 @@ async function main(): Promise<void> {
   const preview = new Graphics();
   const camera = new Camera(1920, 696);
   camera.setViewport(size.w, size.h);
+  ((globalThis as unknown as Record<string, Record<string, unknown>>).__sandbox!).worldToScreen = (x: number, y: number) => {
+    const r = app.canvas.getBoundingClientRect();
+    const v = camera.worldToScreen(x, y);
+    return { x: r.left + (v.x / camera.viewW) * r.width, y: r.top + (v.y / camera.viewH) * r.height };
+  };
   let cursorWorld: { x: number; y: number } | null = null;
 
   onEvents = (events) => {
@@ -286,7 +319,7 @@ async function main(): Promise<void> {
       switch (e.type) {
         case 'TerrainChanged':
           terrainView?.invalidateRect(e.x0, e.y0, e.x1, e.y1);
-          if (e.cause === 'carve') craters++;
+          if (e.cause === 'carve' || e.cause === 'explosion') craters++;
           break;
         case 'BodyImpact': {
           impacts++;
@@ -306,6 +339,14 @@ async function main(): Promise<void> {
           if (v) v.squash = Math.min(1, 0.25 + e.impact / (256 * 10));
           break;
         }
+        case 'CharacterHit': {
+          const v = charViews.get(e.id);
+          if (v) v.flash = 1;
+          break;
+        }
+        case 'DamageRevealed':
+          revealed += e.total;
+          break;
         case 'CharacterDamaged': {
           const c = state.characters.find((x) => x.id === e.id);
           if (!c) break;
@@ -316,12 +357,17 @@ async function main(): Promise<void> {
           popups.push({ t, age: 0 });
           break;
         }
-        case 'CharacterDied':
+        case 'CharacterDied': {
+          const v = charViews.get(e.id);
+          if (v) v.diedOf = e.reason;
+          deaths++;
           if (e.id === state.activeCharacter) selectNext();
           break;
+        }
         case 'Exploded':
-          spawnExplosion(e.x, e.y, e.radius);
-          blastFocus = { x: e.x, y: e.y, until: performance.now() + 700 };
+          spawnExplosion(e.x, e.y, e.radius, e.cause === 'death');
+          shake = Math.min(12, shake + e.radius / 8);
+          blastFocus = { x: e.x, y: e.y, until: performance.now() + (e.cause === 'death' ? 900 : 700) };
           break;
         case 'ProjectileSplashed':
           spawnSplash(e.x, e.y);
@@ -354,7 +400,8 @@ async function main(): Promise<void> {
     recorded = [];
     recordedCmds = [];
     pendingCmds = [];
-    craters = impacts = drowned = lost = 0;
+    craters = impacts = drowned = lost = deaths = revealed = 0;
+    shake = 0;
     worstStepMs = 0;
     loop.reset();
     $('verdict').textContent = '';
@@ -381,15 +428,16 @@ async function main(): Promise<void> {
   }
 
   function updateKeysHelp(): void {
-    const names: Record<Tool, string> = { char: 'Gumling (C)', body: 'candy ball (E)', crater: 'crater (Q)' };
+    const names: Record<Tool, string> = { char: 'Gumling (C)', body: 'candy ball (E)', crater: 'crater (Q)', blast: 'blast (Z)' };
     const how: Record<Tool, string> = {
       char: 'click: place a Gumling (next team)',
       body: 'click: drop · drag: slingshot throw',
       crater: 'click: crater · [ ]: size',
+      blast: 'click: explosion (damage 50, knockback 1) · [ ]: radius',
     };
     $('keys').innerHTML =
       `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>` +
-      `Tool: <b>${names[tool]}</b> — ${how[tool]} · Shift+click girder · right-drag tunnel · N 50 balls · B 200 craters<br>` +
+      `Tool: <b>${names[tool]}</b> — ${how[tool]} · Z blast · Shift+click girder · right-drag tunnel · N 50 balls · B 200 craters<br>` +
       'Middle-drag / WASD pan · wheel zoom · F fit · L follow · V verify · R restart · P pause · . step';
   }
 
@@ -475,7 +523,8 @@ async function main(): Promise<void> {
     if (e.code === 'KeyC') tool = 'char';
     if (e.code === 'KeyE') tool = 'body';
     if (e.code === 'KeyQ') tool = 'crater';
-    if (e.code === 'KeyE' || e.code === 'KeyQ' || e.code === 'KeyC') updateKeysHelp();
+    if (e.code === 'KeyZ') tool = 'blast';
+    if (['KeyE', 'KeyQ', 'KeyC', 'KeyZ'].includes(e.code)) updateKeysHelp();
     if (e.code === 'Tab' && !e.repeat) selectNext();
     if (e.code === 'KeyX' && !e.repeat) pendingCmds.push({ type: 'debugRollWind' });
     if (e.code === 'KeyL') followActive = !followActive;
@@ -545,7 +594,7 @@ async function main(): Promise<void> {
     cursorWorld = camera.screenToWorld(p.x, p.y);
     if (!press || press.id !== e.pointerId) return;
     if (!press.dragging && Math.hypot(p.x - press.x, p.y - press.y) > DRAG_THRESHOLD) press.dragging = true;
-    const pans = press.button === 1 || (press.button === 0 && tool === 'crater' && !press.shift);
+    const pans = press.button === 1 || (press.button === 0 && (tool === 'crater' || tool === 'blast') && !press.shift);
     if (press.dragging && pans) {
       followActive = false;
       canvas.classList.add('dragging');
@@ -574,6 +623,10 @@ async function main(): Promise<void> {
     }
     if (tool === 'crater') {
       if (!pr.dragging) pendingCmds.push({ type: 'debugCarve', x: wx, y: wy, r: carveR });
+      return;
+    }
+    if (tool === 'blast') {
+      if (!pr.dragging) pendingCmds.push({ type: 'debugExplode', x: wx, y: wy, r: Math.min(carveR, 200), damage: 50, knockback: 256 });
       return;
     }
     if (tool === 'char') {
@@ -655,7 +708,9 @@ async function main(): Promise<void> {
 
     const tr = camera.transform();
     world.scale.set(tr.scale);
-    world.position.set(tr.x, tr.y);
+    shake *= 0.86;
+    if (shake < 0.2) shake = 0;
+    world.position.set(tr.x + (Math.random() - 0.5) * shake * 2, tr.y + (Math.random() - 0.5) * shake * 2);
 
     if (terrainView) uploadsLast = terrainView.update();
     waterView?.update(performance.now());
@@ -714,8 +769,17 @@ async function main(): Promise<void> {
       const x = subToPxFloat(p.x + (c.body.x - p.x) * alpha);
       const y = subToPxFloat(p.y + (c.body.y - p.y) * alpha);
       v.root.position.set(x, y);
-      v.root.visible = c.state !== 'dead';
+      const dead = c.state === 'dead';
+      // popped Gumlings leave a grave; drowned / lost ones simply vanish
+      v.root.visible = !dead || v.diedOf === 'hp';
+      v.body.visible = !dead;
+      v.grave.visible = dead;
       v.root.alpha = c.state === 'drowning' ? Math.max(0, 1 - c.body.drownTicks / 75) : 1;
+      // hp label counts down after a reveal; a hit makes the Gumling blink white
+      if (v.shownHp > c.hp) v.shownHp = Math.max(c.hp, v.shownHp - 0.5);
+      else v.shownHp = c.hp;
+      v.flash *= 0.88;
+      v.body.alpha = 1 - v.flash * 0.6;
       // squash: landing / jump crouch; stretch while flying
       v.squash *= 0.82;
       let sx = 1, sy = 1;
@@ -733,7 +797,8 @@ async function main(): Promise<void> {
       v.body.scale.set(sx * c.facing, sy);
       drawEyes(v.eyes, 1, c.state === 'drowning' ? 'x' : c.state === 'landing' ? 'squint' : 'open');
       const active = c.id === state.activeCharacter;
-      v.label.text = `${c.hp}`;
+      v.label.text = dead ? '' : `${Math.ceil(v.shownHp)}`;
+      v.pending.text = c.pendingDamage > 0 && !dead ? `−${c.pendingDamage}` : '';
       v.marker.visible = active && c.state !== 'dead';
       v.marker.position.set(0, -CHAR.radius - 30 + Math.sin(now * 0.006) * 3);
       if (active && (c.state === 'idle' || c.state === 'walk' || c.state === 'jumpPrep')) {
@@ -807,11 +872,18 @@ async function main(): Promise<void> {
     particles.push({ g, x, y, vx, vy, age: 0, life, grav });
   }
 
-  function spawnExplosion(x: number, y: number, r: number): void {
+  function spawnExplosion(x: number, y: number, r: number, death = false): void {
     const g = new Graphics();
     fxLayer.addChild(g);
     rings.push({ g, x, y, r, age: 0 });
     const sugar = [0xffffff, 0xffd23f, 0xff5d8f, 0x4cc9f0];
+    if (death) {
+      // a popped Gumling bursts into confetti
+      for (let k = 0; k < 30; k++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, sp = 2 + Math.random() * 4;
+        spawnParticle(x, y, sugar[k % sugar.length]!, 1.4 + Math.random() * 1.6, Math.cos(a) * sp, Math.sin(a) * sp, 60 + Math.random() * 30, 0.1);
+      }
+    }
     for (let k = 0; k < 26; k++) {
       const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4.5;
       spawnParticle(x, y, sugar[k % sugar.length]!, 1.5 + Math.random() * 2, Math.cos(a) * sp, Math.sin(a) * sp - 1.5, 30 + Math.random() * 25, 0.12);
@@ -899,6 +971,9 @@ async function main(): Promise<void> {
       preview.rect(Math.floor(cursorWorld.x) - 48, Math.floor(cursorWorld.y) - 6, 96, 12).stroke(ink);
     } else if (tool === 'crater') {
       preview.circle(cursorWorld.x, cursorWorld.y, carveR).stroke(ink);
+    } else if (tool === 'blast') {
+      preview.circle(cursorWorld.x, cursorWorld.y, carveR).stroke({ ...ink, color: 0xe8364f });
+      preview.circle(cursorWorld.x, cursorWorld.y, 3 / camera.zoom).fill(0xe8364f);
     } else if (tool === 'char') {
       preview.roundRect(cursorWorld.x - CHAR.radius, cursorWorld.y - CHAR.radius * 1.3, CHAR.radius * 2, CHAR.radius * 2.3, CHAR.radius).stroke(ink);
     } else if (press && press.button === 0 && press.dragging) {
@@ -936,7 +1011,7 @@ async function main(): Promise<void> {
       if (act) {
         hud.push(
           `Gumling <b>#${act.id}</b> · <b>${act.state}</b>`,
-          `hp <b>${act.hp}</b> · facing <b>${act.facing > 0 ? '→' : '←'}</b> · last jump <b>${lastJump}</b>`,
+          `hp <b>${act.hp}</b>${act.pendingDamage ? ` (pending <b>−${act.pendingDamage}</b>)` : ''} · facing <b>${act.facing > 0 ? '→' : '←'}</b> · last jump <b>${lastJump}</b>`,
           `aim <b>${Math.round((act.aim * 360) / 4096)}°</b> · weapon <b>${state.weapons[act.weapon]?.name ?? '—'}</b>${act.state === 'charging' ? ` · power <b>${act.power}</b>` : ''}`,
           `wind <b>${state.wind}</b> · rockets in flight <b>${state.projectiles.length}</b>`,
           `pos <b>${charPx(act)}, ${charPy(act)}</b> · last impact <b>${(act.lastImpact / 256).toFixed(1)} px/t</b>`,
@@ -945,6 +1020,7 @@ async function main(): Promise<void> {
       hud.push(
         `bodies <b>${bs.length}</b> · asleep <b>${asleep}</b> · sinking <b>${sinking}</b>`,
         `impacts <b>${impacts}</b> · drowned <b>${drowned}</b> · lost <b>${lost}</b>`,
+        `pending dmg <b>${state.characters.reduce((a, c) => a + c.pendingDamage, 0)}</b> · settled <b>${Math.min(state.quietTicks, SETTLE_TICKS)}/${SETTLE_TICKS}</b> · revealed <b>${revealed}</b> · deaths <b>${deaths}</b>`,
         `zoom <b>${Math.round(camera.zoom * 100)}%</b>`,
         `map <b>${t.width}×${t.height}</b> · water y <b>${state.waterY}</b>`,
         `solid px <b>${countSolid(t).toLocaleString('en')}</b>`,

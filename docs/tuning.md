@@ -10,3 +10,4 @@ Every intentional change to simulation behaviour that alters a golden hash gets 
 | 2026-09-30 | M3 | GameState schema 3 (bodies); demo bouncers removed; golden scenario rebuilt on the physics arena (spawns, carves, girders, tunnels, 3000 ticks) | new golden `f7d109b4` |
 | 2026-09-30 | M4 | GameState schema 4 (characters); golden scenario adds a controlled character. Tuned: fall damage threshold 5.5→7.5 px/tick and ×8→×10 (backflip must not hurt), jump crouch 6→10 ticks (double-tap window) | new golden `bf8b18a8` |
 | 2026-09-30 | M5 | GameState schema 5 (weapons, projectiles, wind); golden scenario fires Pepper Rockets and rerolls wind | new golden `aa720d93` |
+| 2026-09-30 | M6 | GameState schema 6 (pendingDamage, pendingExplosions, quietTicks, autoReveal); explosions deal falloff damage and knockback, fall damage is pending too; golden scenario adds a second character and periodic `debugExplode` blasts | new golden `f28fe039` |

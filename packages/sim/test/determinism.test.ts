@@ -21,6 +21,7 @@ function scriptedCommands(ticks: number): TimedCommand[] {
   const out: TimedCommand[] = [
     { tick: 1, cmd: { type: 'debugSpawnCharacter', x: 150, y: 440, team: 0 } },
     { tick: 1, cmd: { type: 'debugSelect', id: 1 } },
+    { tick: 1, cmd: { type: 'debugSpawnCharacter', x: 820, y: 440, team: 1 } },
   ];
   for (let tick = 1; tick <= ticks; tick++) {
     if (tick % 40 === 1) out.push({ tick, cmd: { type: 'debugSpawn', x: 60 + ((tick * 37) % 1100), y: 100 + (tick % 150), vx: ((tick % 13) - 6) * 200, vy: -((tick % 7) * 150), r: 6 + (tick % 5) } });
@@ -28,6 +29,7 @@ function scriptedCommands(ticks: number): TimedCommand[] {
     if (tick % 300 === 150) out.push({ tick, cmd: { type: 'debugGirder', x: 200 + (tick % 700), y: 380, w: 96, h: 12 } });
     if (tick % 400 === 200) out.push({ tick, cmd: { type: 'debugTunnel', x0: 300, y0: 520, x1: 600, y1: 600, r: 9 } });
     if (tick % 300 === 0) out.push({ tick, cmd: { type: 'debugRollWind' } });
+    if (tick % 250 === 125) out.push({ tick, cmd: { type: 'debugExplode', x: 780 + (tick % 90), y: 480, r: 40, damage: 35, knockback: 256 } });
   }
   return out;
 }
@@ -130,6 +132,6 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"aa720d93"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"f28fe039"`);
   });
 });

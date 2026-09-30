@@ -61,6 +61,8 @@ function flyUntilDone(s: GameState, ev: SimEvent[], max = 600): SimEvent[] {
 }
 
 const exploded = (ev: SimEvent[]) => ev.find((e) => e.type === 'Exploded') as Extract<SimEvent, { type: 'Exploded' }> | undefined;
+const impact = (ev: SimEvent[]) =>
+  ev.find((e) => e.type === 'ProjectileImpact') as Extract<SimEvent, { type: 'ProjectileImpact' }> | undefined;
 
 describe('weapon definitions', () => {
   it('compiles authored units to integer sim units', () => {
@@ -136,7 +138,7 @@ describe('flight', () => {
   it('a 45° full-power shot on flat ground lands near the ideal range v²/g', () => {
     const s = range({ x: 200, map: { ...rangeMap(), mat: rangeMap().mat } });
     const ev = flyUntilDone(s, aimAndFire(s, 45, 60));
-    const boom = exploded(ev)!;
+    const boom = impact(ev)!;
     const ideal = (16 * 16) / 0.2; // 1280 px
     expect(boom.hit).toBe('terrain');
     expect(Math.abs(boom.x - 200 - ideal)).toBeLessThan(ideal * 0.03);
@@ -182,7 +184,7 @@ describe('impact and outcomes', () => {
     step(s, 0, [{ type: 'debugSpawnCharacter', x: 320, y: standY(700), team: 1 }]);
     run(s, repeat(0, 30));
     const ev = flyUntilDone(s, aimAndFire(s, 0, 60));
-    const boom = exploded(ev)!;
+    const boom = impact(ev)!;
     expect(boom).toMatchObject({ hit: 'character', characterId: 2 });
     expect(Math.abs(boom.x - 320)).toBeLessThanOrEqual(CHAR.radius + 3);
   });
@@ -190,14 +192,14 @@ describe('impact and outcomes', () => {
   it('the shooter is safe at launch but a shot straight up comes back down on it', () => {
     const s = range({ x: 300 });
     const ev = flyUntilDone(s, aimAndFire(s, 90, 10));
-    const boom = exploded(ev)!;
+    const boom = impact(ev)!;
     expect(boom).toMatchObject({ hit: 'character', characterId: 1 });
   });
 
   it('firing point-blank into a wall explodes immediately', () => {
     const s = range({ x: 488 }); // right edge of the body at 497, wall at x=500; muzzle at +14 is inside it
     const ev = flyUntilDone(s, aimAndFire(s, 0, 1), 5);
-    const boom = exploded(ev)!;
+    const boom = impact(ev)!;
     expect(boom.hit).toBe('terrain');
     expect(Math.abs(boom.x - 502)).toBeLessThanOrEqual(3);
   });
@@ -222,7 +224,7 @@ describe('impact and outcomes', () => {
     const short: WeaponJson = { ...ROCKET_JSON, id: 'short', projectile: { ...ROCKET_JSON.projectile, maxLifeTicks: 5 } };
     const s = range({ x: 300, weapons: [short] });
     const ev = flyUntilDone(s, aimAndFire(s, 60, 30));
-    expect(exploded(ev)).toMatchObject({ hit: 'timeout' });
+    expect(impact(ev)).toMatchObject({ hit: 'timeout' });
   });
 });
 

@@ -14,13 +14,20 @@ export type SimEvent =
   | { type: 'CharacterJumped'; tick: number; id: number; kind: 'forward' | 'backflip' }
   /** Landed from the air; `impact` = normal speed in subpixels/tick. */
   | { type: 'CharacterLanded'; tick: number; id: number; impact: number; damage: number }
-  | { type: 'CharacterDamaged'; tick: number; id: number; amount: number; reason: 'fall' }
+  /** Damage taken now, not yet applied to hp (`pending` = running total). */
+  | { type: 'CharacterHit'; tick: number; id: number; damage: number; pending: number }
+  /** Pending damage revealed and applied to hp. */
+  | { type: 'CharacterDamaged'; tick: number; id: number; amount: number; hp: number }
   | { type: 'CharacterEnteredWater'; tick: number; id: number }
-  | { type: 'CharacterDied'; tick: number; id: number; reason: 'drowned' | 'lost' }
+  | { type: 'CharacterDied'; tick: number; id: number; reason: 'drowned' | 'lost' | 'hp' }
   | { type: 'ActiveCharacterChanged'; tick: number; id: number }
   /** `speed` = launch speed in subpixels/tick; `power` = charge ticks. */
   | { type: 'ProjectileFired'; tick: number; id: number; weapon: number; owner: number; power: number; speed: number; x: number; y: number }
-  | { type: 'Exploded'; tick: number; projectile: number; weapon: number; x: number; y: number; radius: number; hit: 'terrain' | 'character' | 'timeout'; characterId: number }
+  /** A projectile's trigger fired here (the explosion itself follows as `Exploded`). */
+  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'timeout'; characterId: number }
+  | { type: 'Exploded'; tick: number; x: number; y: number; radius: number; damage: number; cause: 'weapon' | 'death'; source: number }
+  /** Pending damage was revealed (world settled). */
+  | { type: 'DamageRevealed'; tick: number; total: number }
   | { type: 'ProjectileSplashed'; tick: number; id: number; x: number; y: number }
   | { type: 'ProjectileLost'; tick: number; id: number }
   | { type: 'WindChanged'; tick: number; wind: number }

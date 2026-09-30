@@ -19,3 +19,5 @@ export * from './character/character.js';
 export * from './weapons/definition.js';
 export * from './weapons/projectile.js';
 export * from './environment/wind.js';
+export * from './explosions/explosion.js';
+export * from './explosions/resolve.js';

@@ -7,4 +7,4 @@
 | [003](ADR-003-terrain.md) | Material bitmap terrain with 64×64 chunks | accepted (M1) |
 | [004](ADR-004-weapons.md) | Data-driven weapons compiled into the match state | accepted (M5) |
 | 005 | Relay lockstep with server-side sim | to write at M17 |
-| 006 | Settle-then-reveal damage | to write at M7 |
+| [006](ADR-006-settle-then-reveal.md) | Settle-then-reveal damage | accepted (M6) |

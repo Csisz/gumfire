@@ -19,7 +19,9 @@ export type SimCommand =
   /** Set the wind directly (−100..100) — tests and sandbox. */
   | { type: 'debugSetWind'; wind: number }
   /** Re-roll the wind from the seeded wind stream, as a new turn will (M7). */
-  | { type: 'debugRollWind' };
+  | { type: 'debugRollWind' }
+  /** Detonate an explosion at pixel (x, y): radius px, damage, knockback ×256 (sandbox tool, tests). */
+  | { type: 'debugExplode'; x: number; y: number; r: number; damage: number; knockback: number };
 
 /** A command applied at the start of simulation tick `tick` (1-based, the tick being computed). */
 export interface TimedCommand {
@@ -66,6 +68,10 @@ export function sanitizeCommand(c: unknown): SimCommand | null {
       return { type: 'debugSetWind', wind: o.wind };
     case 'debugRollWind':
       return { type: 'debugRollWind' };
+    case 'debugExplode':
+      if (!coords('x', 'y') || !isInt(o.r) || !inRange(o.r, 1, 200)) return null;
+      if (!isInt(o.damage) || !inRange(o.damage, 0, 200) || !isInt(o.knockback) || !inRange(o.knockback, 0, 2048)) return null;
+      return { type: 'debugExplode', x: o.x as number, y: o.y as number, r: o.r, damage: o.damage, knockback: o.knockback };
     default:
       return null;
   }

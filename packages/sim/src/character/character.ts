@@ -46,6 +46,8 @@ export interface Character {
   weapon: number;
   /** Charge accumulated while holding Fire, in ticks (0..chargeTicks). */
   power: number;
+  /** Damage taken but not yet revealed (applied to hp once the world settles — ADR-006). */
+  pendingDamage: number;
 }
 
 export const CHAR = {
@@ -98,6 +100,7 @@ export function makeCharacter(id: number, team: number, px: number, py: number):
     fallImmune: true,
     weapon: 0,
     power: 0,
+    pendingDamage: 0,
   };
 }
 
@@ -322,8 +325,8 @@ function stepAir(c: Character, t: TerrainState, waterY: number, tick: number, ev
   c.fallImmune = false;
   events.push({ type: 'CharacterLanded', tick, id: c.id, impact: res.impactSpeed, damage: dmg });
   if (dmg > 0) {
-    c.hp = Math.max(0, c.hp - dmg);
-    events.push({ type: 'CharacterDamaged', tick, id: c.id, amount: dmg, reason: 'fall' });
+    c.pendingDamage += dmg; // revealed with all other damage once the world settles
+    events.push({ type: 'CharacterHit', tick, id: c.id, damage: dmg, pending: c.pendingDamage });
   }
   setState(c, 'landing');
 }
@@ -335,8 +338,14 @@ function enterWater(c: Character, tick: number, events: SimEvent[]): void {
   events.push({ type: 'CharacterEnteredWater', tick, id: c.id });
 }
 
-function die(c: Character, tick: number, reason: 'drowned' | 'lost', events: SimEvent[]): void {
+/** Kill a character (drowned, lost off-map, or out of hp at a damage reveal). */
+export function killCharacter(c: Character, tick: number, reason: 'drowned' | 'lost' | 'hp', events: SimEvent[]): void {
+  die(c, tick, reason, events);
+}
+
+function die(c: Character, tick: number, reason: 'drowned' | 'lost' | 'hp', events: SimEvent[]): void {
   c.hp = 0;
+  c.pendingDamage = 0;
   setState(c, 'dead');
   events.push({ type: 'CharacterDied', tick, id: c.id, reason });
 }
