@@ -5,6 +5,7 @@ import { MAX_BODIES, makeBody, stepBodies, wakeBodiesInRect } from './physics/bo
 import { MAX_CHARACTERS, makeCharacter, stepCharacter } from './character/character.js';
 import { rollWind } from './environment/wind.js';
 import { makeProjectile, stepProjectile } from './weapons/projectile.js';
+import { meleeSwing } from './weapons/melee.js';
 import { blastBodies, blastCharacters, type Explosion } from './explosions/explosion.js';
 import { stepSettle } from './explosions/resolve.js';
 import { controlOf, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, stepTurn } from './turn/turn.js';
@@ -23,7 +24,7 @@ function stepProjectiles(state: GameState, events: SimEvent[]): void {
   const keep = [];
   for (const p of state.projectiles) {
     const def = state.weapons[p.weapon]!;
-    const out = stepProjectile(p, def, t, state.characters, state.wind, state.waterY);
+    const out = stepProjectile(p, def, t, state.characters, state.wind, state.waterY, state.tick, events);
     switch (out.kind) {
       case 'flying':
         keep.push(p);
@@ -67,12 +68,14 @@ function resolveExplosions(state: GameState, events: SimEvent[]): void {
     events.push({ type: 'Exploded', tick: state.tick, x: e.x, y: e.y, radius: e.radius, damage: e.damage, cause: e.cause, source: e.source });
     blastCharacters(e, state.characters, state.tick, events);
     blastBodies(e, state.bodies);
+    for (const p of state.projectiles) if (p.body) blastBodies(e, [p.body]); // grenades get pushed too
   }
 }
 
 function terrainEdit(state: GameState, r: EditRect | null, cause: 'carve' | 'tunnel' | 'girder' | 'explosion', events: SimEvent[]): void {
   if (!r) return;
   wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
+  for (const p of state.projectiles) if (p.body) wakeBodiesInRect([p.body], r.x0, r.y0, r.x1, r.y1);
   // characters check their support every tick, so they need no explicit wake
   events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
 }
@@ -105,7 +108,10 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
       const weapon = state.weapons[c.weapon] ?? null;
       const controlled = control.id !== 0 && c.id === control.id;
       const power = stepCharacter(c, state.terrain, state.waterY, state.tick, controlled, charInput, charPrev, events, weapon);
-      if (power >= 0 && weapon && state.projectiles.length < MAX_PROJECTILES) {
+      if (power >= 0 && weapon && weapon.category === 'melee') {
+        meleeSwing(c, c.weapon, weapon, state.characters, state.tick, events);
+        onShotFired(state, weapon, events);
+      } else if (power >= 0 && weapon && state.projectiles.length < MAX_PROJECTILES) {
         const id = state.nextProjectileId++;
         const p = makeProjectile(id, c.weapon, weapon, c, power);
         state.projectiles.push(p);

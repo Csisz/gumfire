@@ -85,3 +85,34 @@ export function rangeMap(): MapSpec {
   for (let y = 600; y < 700; y++) mat[y * width + 500] = Mat.SOIL;
   return { width, height, mat, waterY: 780 };
 }
+
+/** The Fizz Grenade as authored (fused, bouncing, wind-proof). */
+export const GRENADE_JSON: WeaponJson = {
+  id: 'fizz_grenade',
+  name: 'Fizz Grenade',
+  category: 'ballistic',
+  input: { mode: 'aimCharge' },
+  launch: { speedMin: 1.5, speedMax: 13, chargeTicks: 60, muzzleOffset: 12 },
+  projectile: {
+    radius: 4,
+    gravityScale: 1,
+    windFactor: 0,
+    triggers: [{ kind: 'fuse', defaultSeconds: 3, playerSet: true }],
+    bounce: { low: 0.35, high: 0.7, friction: 0.8 },
+    payload: { explosion: { radius: 44, damage: 45, knockback: 1, carve: true } },
+    maxLifeTicks: 1000,
+  },
+  ammo: { default: 'inf' },
+  turn: { endsTurn: true, shotsPerTurn: 1 },
+};
+
+/** The Rolling Pin as authored (melee). */
+export const PIN_JSON: WeaponJson = {
+  id: 'rolling_pin',
+  name: 'Rolling Pin',
+  category: 'melee',
+  input: { mode: 'instant' },
+  melee: { reach: 18, arcDegrees: 100, damage: 30, impulse: 10 },
+  ammo: { default: 'inf' },
+  turn: { endsTurn: true, shotsPerTurn: 1 },
+};

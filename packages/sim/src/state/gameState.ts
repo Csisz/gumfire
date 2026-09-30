@@ -17,7 +17,7 @@ import { setupMatch, type MatchConfig, type MatchState } from '../match/match.js
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 7;
+  schema: 8;
   seed: number;
   tick: number;
   rng: RngStreams;
@@ -84,7 +84,7 @@ export function hashWeapons(defs: readonly WeaponDef[]): number {
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
   const s: GameState = {
-    schema: 7,
+    schema: 8,
     seed,
     tick: 0,
     rng: createStreams(seed),
@@ -137,10 +137,15 @@ export function hashState(s: GameState): number {
   for (const c of s.characters) {
     h.int(c.id).int(c.team).str(c.state).int(c.stateTicks).int(c.facing).int(c.aim).int(c.aimHeld);
     h.int(c.hp).int(c.jumpKind).int(c.lastImpact).bool(c.fallImmune).int(c.weapon).int(c.power).int(c.pendingDamage);
+    h.int(c.fuse).bool(c.bounceHigh);
     hashBody(h, c.body);
   }
   h.u32(s.weaponsHash).int(s.wind).int(s.nextProjectileId).u32(s.projectiles.length);
-  for (const p of s.projectiles) h.int(p.id).int(p.weapon).int(p.owner).int(p.x).int(p.y).int(p.vx).int(p.vy).int(p.age).int(p.windRem);
+  for (const p of s.projectiles) {
+    h.int(p.id).int(p.weapon).int(p.owner).int(p.x).int(p.y).int(p.vx).int(p.vy).int(p.age).int(p.windRem).int(p.fuse);
+    h.bool(p.body !== null);
+    if (p.body) hashBody(h, p.body);
+  }
   h.u32(s.pendingExplosions.length);
   for (const e of s.pendingExplosions) h.int(e.x).int(e.y).int(e.radius).int(e.damage).int(e.knockback).bool(e.carve).str(e.cause).int(e.source);
   h.int(s.quietTicks).bool(s.autoReveal);
@@ -177,6 +182,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 7) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 8) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

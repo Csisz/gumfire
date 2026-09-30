@@ -24,3 +24,4 @@ export * from './explosions/resolve.js';
 export * from './match/ruleset.js';
 export * from './match/match.js';
 export * from './turn/turn.js';
+export * from './weapons/melee.js';

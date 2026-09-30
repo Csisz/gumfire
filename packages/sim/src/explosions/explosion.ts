@@ -78,18 +78,24 @@ export function blastCharacters(e: Explosion, chars: Character[], tick: number, 
       c.pendingDamage += fx.damage;
       events.push({ type: 'CharacterHit', tick, id: c.id, damage: fx.damage, pending: c.pendingDamage });
     }
-    if (fx.jx !== 0 || fx.jy !== 0) {
-      c.body.vx += fx.jx;
-      c.body.vy += fx.jy;
-      c.body.sleeping = false;
-      c.body.stillTicks = 0;
-      c.fallImmune = true;
-      c.power = 0;
-      c.jumpKind = 0;
-      c.state = 'air';
-      c.stateTicks = 0;
-    }
+    if (fx.jx !== 0 || fx.jy !== 0) throwCharacter(c, fx.jx, fx.jy);
   }
+}
+
+/**
+ * Add an impulse (subpixels/tick) to a character: it becomes airborne, loses any charge, and
+ * its landing deals no fall damage (the hit that threw it already counted — classic rule).
+ */
+export function throwCharacter(c: Character, jx: number, jy: number): void {
+  c.body.vx += jx;
+  c.body.vy += jy;
+  c.body.sleeping = false;
+  c.body.stillTicks = 0;
+  c.fallImmune = true;
+  c.power = 0;
+  c.jumpKind = 0;
+  c.state = 'air';
+  c.stateTicks = 0;
 }
 
 /** Apply an explosion to loose physics bodies (toys now, barrels/mines/crates later). */

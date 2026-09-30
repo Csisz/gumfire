@@ -11,7 +11,7 @@ import {
   type Replay,
   type TimedCommand,
 } from '../src/index.js';
-import { ROCKET_JSON, arenaMap } from './helpers.js';
+import { GRENADE_JSON, PIN_JSON, ROCKET_JSON, arenaMap } from './helpers.js';
 
 /**
  * Scripted session on the physics arena: bodies are thrown in, terrain is carved under them,
@@ -132,13 +132,15 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"bad3eef8"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"3ca9e7f6"`);
   });
 
   it('golden hash: a scripted turn-based match (placement, turns, retreats, reveals, sudden death)', () => {
     const inputs = Array.from({ length: 6000 }, (_, t) => {
       const k = t % 400;
       if (k < 25) return Btn.Up;
+      if (k === 57) return [Btn.Fuse1, Btn.Fuse2, Btn.Fuse3, Btn.Fuse4, Btn.Fuse5][Math.floor(t / 400) % 5]!;
+      if (k === 58 && t % 1200 < 400) return Btn.Alt;
       if (k >= 60 && k < 100) return Btn.Fire;
       if (k >= 100 && k < 130) return t % 800 < 400 ? Btn.Left : Btn.Right;
       if (k === 131) return Btn.Jump;
@@ -148,14 +150,16 @@ describe('determinism (physics arena)', () => {
       config: {
         seed: 7,
         map: arenaMap(),
-        weapons: [ROCKET_JSON],
+        weapons: [ROCKET_JSON, GRENADE_JSON, PIN_JSON],
         match: { teams: [{ name: 'Sour', size: 3 }, { name: 'Sweet', size: 3 }], ruleset: { turnSeconds: 8, roundSeconds: 40 } },
       },
       inputs,
+      // rotate rocket → grenade (fuse 1–5) → rolling pin, one per turn slot
+      commands: Array.from({ length: 15 }, (_, i) => ({ tick: i * 400 + 55, cmd: { type: 'selectWeapon' as const, index: i % 3 } })),
     };
     const res = runReplay(replay);
     expect(res.state.match!.turn).toBeGreaterThan(8);
     expect(hashState(deserializeState(serializeState(res.state)))).toBe(res.finalHash);
-    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"5c6e3483"`);
+    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"f4a15ca8"`);
   });
 });

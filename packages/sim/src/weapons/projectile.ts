@@ -4,6 +4,9 @@ import { windStep } from '../environment/wind.js';
 import { overlapsDisc } from '../physics/collision.js';
 import { PHYS } from '../physics/constants.js';
 import type { Character } from '../character/character.js';
+import { makeBody, stepBody, type Body } from '../physics/body.js';
+import type { SimEvent } from '../core/events.js';
+import { TICKS_PER_SECOND } from '../core/units.js';
 import type { TerrainState } from '../terrain/terrain.js';
 import { launchSpeed, type WeaponDef } from './definition.js';
 
@@ -26,11 +29,18 @@ export interface Projectile {
   age: number;
   /** Wind remainder (see environment/wind.ts). */
   windRem: number;
+  /** Ticks left on the fuse; −1 = no fuse. */
+  fuse: number;
+  /**
+   * Fused projectiles bounce as physics bodies (plan §9); `x/y/vx/vy` mirror the body.
+   * Null for impact projectiles, which fly the simple ballistic path below.
+   */
+  body: Body | null;
 }
 
 export type ProjectileOutcome =
   | { kind: 'flying' }
-  | { kind: 'explode'; x: number; y: number; hit: 'terrain' | 'character' | 'timeout'; characterId: number }
+  | { kind: 'explode'; x: number; y: number; hit: 'terrain' | 'character' | 'timeout' | 'fuse'; characterId: number }
   | { kind: 'splash'; x: number }
   | { kind: 'lost' };
 
@@ -49,17 +59,38 @@ export function makeProjectile(id: number, weaponIndex: number, def: WeaponDef, 
   const speed = launchSpeed(def, power);
   const v = launchVector(shooter.aim, shooter.facing, speed);
   const dir = launchVector(shooter.aim, shooter.facing, def.muzzleOffset * SUB);
-  return {
-    id,
-    weapon: weaponIndex,
-    owner: shooter.id,
-    x: shooter.body.x + dir.vx,
-    y: shooter.body.y + dir.vy,
-    vx: v.vx,
-    vy: v.vy,
-    age: 0,
-    windRem: 0,
-  };
+  const x = shooter.body.x + dir.vx, y = shooter.body.y + dir.vy;
+  const fuse = def.fuseTicks > 0 ? (def.playerFuse ? shooter.fuse * TICKS_PER_SECOND : def.fuseTicks) : -1;
+  const body =
+    def.bounceLow > 0 || def.bounceHigh > 0 || def.fuseTicks > 0
+      ? makeBody(id, x, y, v.vx, v.vy, {
+          radius: def.radius,
+          restitution: shooter.bounceHigh ? def.bounceHigh : def.bounceLow,
+          friction: def.bounceFriction,
+          gravityScale: def.gravityScale,
+        })
+      : null;
+  return { id, weapon: weaponIndex, owner: shooter.id, x, y, vx: v.vx, vy: v.vy, age: 0, windRem: 0, fuse, body };
+}
+
+/**
+ * A fused, bouncing projectile: a physics body with a fuse (the Fizz Grenade). It ignores
+ * characters (rolls past them), rests like any body, and goes off when the fuse runs out.
+ */
+function stepBouncer(p: Projectile, b: Body, def: WeaponDef, t: TerrainState, wind: number, waterY: number, tick: number, bounces: SimEvent[]): ProjectileOutcome {
+  if (def.windFactor !== 0 && !b.sleeping) b.vx += windStep(wind, def.windFactor, p);
+  const scratch: SimEvent[] = [];
+  const res = stepBody(b, t, waterY, tick, scratch);
+  p.x = b.x;
+  p.y = b.y;
+  p.vx = b.vx;
+  p.vy = b.vy;
+  if (res.impactSpeed > 0) bounces.push({ type: 'ProjectileBounced', tick, id: p.id, speed: res.impactSpeed, x: pxOf(b.x), y: pxOf(b.y) });
+  if (res.enteredWater) return { kind: 'splash', x: pxOf(b.x) };
+  if (res.removed === 'lost') return { kind: 'lost' };
+  if (p.fuse >= 0 && p.fuse-- <= 0) return { kind: 'explode', x: pxOf(b.x), y: pxOf(b.y), hit: 'fuse', characterId: 0 };
+  if (p.age >= def.maxLifeTicks) return { kind: 'explode', x: pxOf(b.x), y: pxOf(b.y), hit: 'timeout', characterId: 0 };
+  return { kind: 'flying' };
 }
 
 const pxOf = (s: number) => s >> 8;
@@ -84,8 +115,11 @@ export function stepProjectile(
   chars: readonly Character[],
   wind: number,
   waterY: number,
+  tick = 0,
+  events: SimEvent[] = [],
 ): ProjectileOutcome {
   p.age++;
+  if (p.body) return stepBouncer(p, p.body, def, t, wind, waterY, tick, events);
   // A projectile that starts inside terrain (fired point-blank into a wall) goes off at once.
   if (p.age === 1 && overlapsDisc(t, pxOf(p.x), pxOf(p.y), def.radius)) {
     return { kind: 'explode', x: pxOf(p.x), y: pxOf(p.y), hit: 'terrain', characterId: 0 };

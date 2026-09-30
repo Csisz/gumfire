@@ -48,6 +48,10 @@ export interface Character {
   power: number;
   /** Damage taken but not yet revealed (applied to hp once the world settles — ADR-006). */
   pendingDamage: number;
+  /** Fuse for player-set fused weapons, seconds 1..5 (keys 1–5). */
+  fuse: number;
+  /** Bouncy (high restitution) rather than soft throws for bouncing weapons (Alt toggles). */
+  bounceHigh: boolean;
 }
 
 export const CHAR = {
@@ -83,6 +87,7 @@ export const CHAR = {
 } as const;
 
 export const MAX_CHARACTERS = 48;
+const FUSE_BUTTONS = [Btn.Fuse1, Btn.Fuse2, Btn.Fuse3, Btn.Fuse4, Btn.Fuse5] as const;
 
 export function makeCharacter(id: number, team: number, px: number, py: number): Character {
   return {
@@ -101,6 +106,8 @@ export function makeCharacter(id: number, team: number, px: number, py: number):
     weapon: 0,
     power: 0,
     pendingDamage: 0,
+    fuse: 3,
+    bounceHigh: false,
   };
 }
 
@@ -182,8 +189,18 @@ export function stepCharacter(
     return -1;
   }
 
-  // ---- aim works in every living state for the controlled character
+  // ---- aim, fuse and bounce settings work in every living state for the controlled character
   if (controlled) {
+    for (let k = 0; k < FUSE_BUTTONS.length; k++) {
+      if (pressed(prevInput, input, FUSE_BUTTONS[k]!) && c.fuse !== k + 1) {
+        c.fuse = k + 1;
+        events.push({ type: 'FuseChanged', tick, id: c.id, fuse: c.fuse, bounceHigh: c.bounceHigh });
+      }
+    }
+    if (pressed(prevInput, input, Btn.Alt)) {
+      c.bounceHigh = !c.bounceHigh;
+      events.push({ type: 'FuseChanged', tick, id: c.id, fuse: c.fuse, bounceHigh: c.bounceHigh });
+    }
     const up = isDown(input, Btn.Up), down = isDown(input, Btn.Down);
     if (up !== down) {
       c.aimHeld++;
@@ -273,6 +290,7 @@ function stepGround(
         return -1;
       }
       if (weapon && pressed(prevInput, input, Btn.Fire)) {
+        if (weapon.instant) return 0; // melee and other instant weapons act on the press
         c.power = 1;
         setState(c, 'charging');
         return -1;

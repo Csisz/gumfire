@@ -24,7 +24,7 @@ export type SimEvent =
   /** `speed` = launch speed in subpixels/tick; `power` = charge ticks. */
   | { type: 'ProjectileFired'; tick: number; id: number; weapon: number; owner: number; power: number; speed: number; x: number; y: number }
   /** A projectile's trigger fired here (the explosion itself follows as `Exploded`). */
-  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'timeout'; characterId: number }
+  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'timeout' | 'fuse'; characterId: number }
   | { type: 'Exploded'; tick: number; x: number; y: number; radius: number; damage: number; cause: 'weapon' | 'death'; source: number }
   /** Pending damage was revealed (world settled). */
   | { type: 'DamageRevealed'; tick: number; total: number }
@@ -32,6 +32,11 @@ export type SimEvent =
   | { type: 'ProjectileLost'; tick: number; id: number }
   | { type: 'WindChanged'; tick: number; wind: number }
   | { type: 'WeaponSelected'; tick: number; id: number; weapon: number }
+  /** A bouncing projectile hit terrain (`speed` = normal speed, subpixels/tick). */
+  | { type: 'ProjectileBounced'; tick: number; id: number; speed: number; x: number; y: number }
+  | { type: 'FuseChanged'; tick: number; id: number; fuse: number; bounceHigh: boolean }
+  /** A melee swing along `dir` (angle units); `hits` = character ids struck. */
+  | { type: 'MeleeSwing'; tick: number; id: number; weapon: number; x: number; y: number; dir: number; hits: number[] }
   // ---- turn system (M7)
   | { type: 'TurnPhaseChanged'; tick: number; phase: 'turnPrep' | 'turnActive' | 'retreat' | 'settling' | 'damageReveal' | 'matchOver'; turn: number }
   /** A new turn: `team` plays with character `id`. */

@@ -128,6 +128,9 @@ function currentInput(): InputFrame {
   if (down('Enter') || down('NumpadEnter')) f |= Btn.Jump;
   if (down('Space')) f |= Btn.Fire;
   if (down('Backspace')) f |= Btn.EndTurn;
+  const fuseKeys = [Btn.Fuse1, Btn.Fuse2, Btn.Fuse3, Btn.Fuse4, Btn.Fuse5];
+  for (let k = 0; k < 5; k++) if (down(`Digit${k + 1}`)) f |= fuseKeys[k]!;
+  if (down('AltLeft') || down('AltRight')) f |= Btn.Alt;
   deliveredLastTick = deliveredThisTick;
   return f;
 }
@@ -386,6 +389,15 @@ async function main(): Promise<void> {
           shake = Math.min(12, shake + e.radius / 8);
           blastFocus = { x: e.x, y: e.y, until: performance.now() + (e.cause === 'death' ? 900 : 700) };
           break;
+        case 'MeleeSwing': {
+          const a = -(e.dir / 4096) * Math.PI * 2;
+          for (let k = 0; k < 12; k++) {
+            const t = (k / 11 - 0.5) * 1.6 + a;
+            spawnParticle(e.x + Math.cos(t) * 16, e.y + Math.sin(t) * 16, 0xfff1c9, 2.5, Math.cos(a) * 1.5, Math.sin(a) * 1.5, 14, 0);
+          }
+          if (e.hits.length) shake = Math.min(12, shake + 5);
+          break;
+        }
         case 'ProjectileSplashed':
           spawnSplash(e.x, e.y);
           blastFocus = { x: e.x, y: e.y, until: performance.now() + 500 };
@@ -454,8 +466,9 @@ async function main(): Promise<void> {
     };
     $('keys').innerHTML =
       (mode === 'match'
-        ? `<b>Hot-seat match:</b> teams take turns on one keyboard · ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Backspace ends the retreat early · R rematch<br>`
-        : `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>`) +
+        ? `<b>Hot-seat match:</b> teams take turns on one keyboard · ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Backspace ends the retreat early · R rematch<br><b>Weapons:</b> F1 Pepper Rocket · F2 Fizz Grenade (1–5 fuse, Alt bounce) · F3 Rolling Pin<br>`
+        : `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>` +
+          `<b>Weapons:</b> F1 Pepper Rocket · F2 Fizz Grenade (1–5 fuse, Alt bounce) · F3 Rolling Pin<br>`) +
       `Tool: <b>${names[tool]}</b> — ${how[tool]} · Z blast · Shift+click girder · right-drag tunnel · N 50 balls · B 200 craters<br>` +
       'Middle-drag / WASD pan · wheel zoom · F fit · L follow · V verify · R restart · P pause · . step';
   }
@@ -561,7 +574,12 @@ async function main(): Promise<void> {
       camera.fitWorld();
       followActive = false;
     }
-    if (e.code === 'Digit1') camera.zoomAt(1 / camera.zoom, centre().x, centre().y);
+    if (['F1', 'F2', 'F3'].includes(e.code)) {
+      e.preventDefault();
+      pendingCmds.push({ type: 'selectWeapon', index: Number(e.code.slice(1)) - 1 });
+    }
+    if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();
+    if (e.code === 'Digit0') camera.zoomAt(1 / camera.zoom, centre().x, centre().y);
     if (e.code === 'Equal' || e.code === 'NumpadAdd') camera.zoomAt(1.25, centre().x, centre().y);
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') camera.zoomAt(0.8, centre().x, centre().y);
     if (e.code === 'KeyU') markDirtyRect(t, 0, 0, t.width - 1, t.height - 1);
@@ -870,13 +888,27 @@ async function main(): Promise<void> {
     return c;
   }
 
+  function makeCanView(): Container {
+    // an original fizzy soda can: blue body, silver rims, bubble dots
+    const c = new Container();
+    const can = new Graphics().roundRect(-4, -5.5, 8, 11, 2).fill(0x3fa9f5).stroke({ width: 1.5, color: OUTLINE });
+    const rims = new Graphics().rect(-4, -5.5, 8, 1.6).rect(-4, 3.9, 8, 1.6).fill(0xd8dde6);
+    const shine = new Graphics().rect(-2.6, -3.5, 1.2, 7).fill({ color: 0xffffff, alpha: 0.6 });
+    const fuse = new Text({ text: '', style: { fontFamily: 'ui-monospace, monospace', fontSize: 10, fontWeight: '800', fill: 0xffffff, stroke: { color: OUTLINE, width: 3 } } });
+    fuse.label = 'fuse';
+    fuse.anchor.set(0.5, 1);
+    fuse.position.set(0, -9);
+    c.addChild(can, rims, shine, fuse);
+    return c;
+  }
+
   function drawProjectiles(alpha: number): void {
     const alive = new Set<number>();
     for (const p of state.projectiles) {
       alive.add(p.id);
       let v = projViews.get(p.id);
       if (!v) {
-        v = makeRocketView();
+        v = p.body ? makeCanView() : makeRocketView();
         projViews.set(p.id, v);
         projLayer.addChild(v);
       }
@@ -884,6 +916,15 @@ async function main(): Promise<void> {
       const x = subToPxFloat(prev.x + (p.x - prev.x) * alpha);
       const y = subToPxFloat(prev.y + (p.y - prev.y) * alpha);
       v.position.set(x, y);
+      if (p.body) {
+        v.rotation += p.vx / 2048; // rolling can
+        const fuse = v.getChildByLabel('fuse') as Text | null;
+        if (fuse) {
+          fuse.text = String(Math.ceil(Math.max(0, p.fuse) / TICKS_PER_SECOND));
+          fuse.rotation = -v.rotation;
+        }
+        continue;
+      }
       v.rotation = Math.atan2(p.vy, p.vx);
       if (Math.random() < 0.6) spawnParticle(x - Math.cos(v.rotation) * 10, y - Math.sin(v.rotation) * 10, 0xfff1f5, 2.2 + Math.random() * 2, 0, -0.1, 30, 0);
     }
@@ -1094,7 +1135,7 @@ async function main(): Promise<void> {
         hud.push(
           `Gumling <b>#${act.id}</b> · <b>${act.state}</b>`,
           `hp <b>${act.hp}</b>${act.pendingDamage ? ` (pending <b>−${act.pendingDamage}</b>)` : ''} · facing <b>${act.facing > 0 ? '→' : '←'}</b> · last jump <b>${lastJump}</b>`,
-          `aim <b>${Math.round((act.aim * 360) / 4096)}°</b> · weapon <b>${state.weapons[act.weapon]?.name ?? '—'}</b>${act.state === 'charging' ? ` · power <b>${act.power}</b>` : ''}`,
+          `aim <b>${Math.round((act.aim * 360) / 4096)}°</b> · weapon <b>${state.weapons[act.weapon]?.name ?? '—'}</b> · fuse <b>${act.fuse} s ${act.bounceHigh ? 'bouncy' : 'soft'}</b>${act.state === 'charging' ? ` · power <b>${act.power}</b>` : ''}`,
           `wind <b>${state.wind}</b> · rockets in flight <b>${state.projectiles.length}</b>`,
           `pos <b>${charPx(act)}, ${charPy(act)}</b> · last impact <b>${(act.lastImpact / 256).toFixed(1)} px/t</b>`,
         );
