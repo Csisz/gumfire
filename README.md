@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M2 — terrain destruction** complete (M0 sandbox, M1 terrain rendering before it). See [`docs/progress`](docs/progress).
+> Status: **M3 — physics & collision** complete (M0 sandbox, M1 terrain rendering, M2 destruction before it). See [`docs/progress`](docs/progress).
 
 ## Quick start
 
@@ -13,14 +13,13 @@ lockstep play and AI shot-search come for free.
 pnpm install
 pnpm dev          # sandbox at http://localhost:5173
 pnpm check        # lint + typecheck + tests + build (what CI runs)
-pnpm bench:carve  # crater cost on bundled code
+pnpm bench        # crater and physics cost on bundled code
 ```
 
-Sandbox: pick a scene (maps or the M0 bouncers). Maps: click = crater, Shift+click = girder,
-right-drag = tunnel, `[`/`]` crater size, B = 200-crater stress test; drag to pan, wheel to zoom
-at the cursor, WASD/arrows pan, +/− zoom, F fit, 1 = 100 %, U repaint all chunks. Bouncers: Space
-spawn, ←/→ push, Enter kick. Everywhere: P pause, `.` single tick, V verify determinism,
-R restart, I toggle interpolation.
+Sandbox (pick a map): **E** Gumling tool — click drops one, drag = slingshot throw; **Q** crater
+tool — click carves, `[`/`]` size; Shift+click girder; right-drag tunnel; **N** 50 Gumlings;
+**B** 200 craters; middle-drag/WASD pan, wheel zoom, F fit; P pause, `.` single tick,
+**V verify determinism**, R restart.
 
 ## Repository map
 
@@ -31,8 +30,8 @@ packages/sim/     PURE deterministic simulation — no DOM, no Pixi, no Math.ran
   src/core/       units, integer trig (+ generated tables), RNG, hash, input, clone, serialise
   src/terrain/    material bitmap, 64×64 chunks, incremental hashing, carve/tunnel/add edits
   src/core/commands.ts  tick-stamped structured input (debug edits now, targets later)
+  src/physics/    bodies: collision vs bitmap, substeps, bounce/friction, sleep, water
   src/state/      GameState, create/hash/clone/serialise
-  src/demo/       temporary M0 bouncers (removed at M3)
   src/step.ts     one 20 ms tick, canonical system order
   src/replay.ts   seed + input frames → state + checkpoint hashes
 packages/render/  Pixi views + pure painters: terrain paint, TerrainView, WaterView, Camera

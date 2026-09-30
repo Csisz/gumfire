@@ -12,5 +12,6 @@ export type { SimEvent } from './core/events.js';
 export * from './state/gameState.js';
 export { step, MAX_COMMANDS_PER_TICK } from './step.js';
 export * from './replay.js';
-export type { DemoBall, DemoState } from './demo/bouncers.js';
-export { DEMO } from './demo/bouncers.js';
+export * from './physics/constants.js';
+export * from './physics/collision.js';
+export * from './physics/body.js';

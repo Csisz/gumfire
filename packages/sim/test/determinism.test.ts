@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  Btn,
   cloneState,
   createGame,
   deserializeState,
@@ -8,69 +7,89 @@ import {
   runReplay,
   serializeState,
   step,
-  type InputFrame,
   type Replay,
+  type TimedCommand,
 } from '../src/index.js';
+import { arenaMap } from './helpers.js';
 
-/** Scripted input: pushes, kicks and spawns at fixed ticks, derived only from the tick number. */
-function scriptedInputs(ticks: number): InputFrame[] {
-  const out: InputFrame[] = [];
-  for (let t = 1; t <= ticks; t++) {
-    let f = 0;
-    if (t % 97 < 20) f |= Btn.Right;
-    if (t % 131 < 15) f |= Btn.Left;
-    if (t % 250 === 0) f |= Btn.Jump;
-    if (t % 60 === 0) f |= Btn.Fire;
-    out.push(f);
+/**
+ * Scripted session on the physics arena: bodies are thrown in, terrain is carved under them,
+ * girders appear, tunnels are dug. Everything is derived from the tick number only.
+ */
+function scriptedCommands(ticks: number): TimedCommand[] {
+  const out: TimedCommand[] = [];
+  for (let tick = 1; tick <= ticks; tick++) {
+    if (tick % 40 === 1) out.push({ tick, cmd: { type: 'debugSpawn', x: 60 + ((tick * 37) % 1100), y: 100 + (tick % 150), vx: ((tick % 13) - 6) * 200, vy: -((tick % 7) * 150), r: 6 + (tick % 5) } });
+    if (tick % 120 === 60) out.push({ tick, cmd: { type: 'debugCarve', x: 100 + ((tick * 53) % 1000), y: 505, r: 30 + (tick % 20) } });
+    if (tick % 300 === 150) out.push({ tick, cmd: { type: 'debugGirder', x: 200 + (tick % 700), y: 380, w: 96, h: 12 } });
+    if (tick % 400 === 200) out.push({ tick, cmd: { type: 'debugTunnel', x0: 300, y0: 520, x1: 600, y1: 600, r: 9 } });
   }
   return out;
 }
 
-const REPLAY: Replay = { config: { seed: 20260930 }, inputs: scriptedInputs(3000) };
+const TICKS = 3000;
+const REPLAY: Replay = { config: { seed: 20260930, map: arenaMap() }, inputs: new Array(TICKS).fill(0), commands: scriptedCommands(TICKS) };
 
-describe('determinism', () => {
-  it('same seed + inputs → identical hashes at every checkpoint', () => {
+function runLive(until: number) {
+  const s = createGame(REPLAY.config);
+  const cmds = REPLAY.commands!;
+  let c = 0;
+  const advance = (to: number) => {
+    while (s.tick < to) {
+      const batch = [];
+      while (c < cmds.length && cmds[c]!.tick === s.tick + 1) batch.push(cmds[c++]!.cmd);
+      step(s, 0, batch);
+    }
+  };
+  advance(until);
+  return { s, advance };
+}
+
+describe('determinism (physics arena)', () => {
+  it('same seed + inputs + commands → identical hashes at every checkpoint', () => {
     const a = runReplay(REPLAY);
     const b = runReplay(REPLAY);
     expect(a.checkpoints.length).toBe(60);
     expect(a.checkpoints).toEqual(b.checkpoints);
-    expect(a.finalHash).toBe(b.finalHash);
+    expect(a.state.bodies.length + a.state.nextBodyId).toBeGreaterThan(10); // the scenario really exercised bodies
   });
 
-  it('different seeds diverge', () => {
-    const a = runReplay(REPLAY);
-    const b = runReplay({ ...REPLAY, config: { seed: 1 } });
-    expect(a.finalHash).not.toBe(b.finalHash);
-  });
-
-  it('one changed input frame changes the outcome', () => {
-    const inputs = [...REPLAY.inputs];
-    inputs[500] = (inputs[500] ?? 0) | Btn.Fire;
-    const a = runReplay(REPLAY);
-    const b = runReplay({ ...REPLAY, inputs });
-    expect(a.finalHash).not.toBe(b.finalHash);
+  it('one changed command changes the outcome', () => {
+    const cmds = REPLAY.commands!.map((c) => (c.tick === 81 && c.cmd.type === 'debugSpawn' ? { ...c, cmd: { ...c.cmd, vx: c.cmd.vx + 1 } } : c));
+    expect(runReplay({ ...REPLAY, commands: cmds }).finalHash).not.toBe(runReplay(REPLAY).finalHash);
   });
 
   it('clone mid-match and continue → same result', () => {
-    const s = createGame(REPLAY.config);
-    const half = 1500;
-    REPLAY.inputs.slice(0, half).forEach((f) => step(s, f));
+    const { s } = runLive(1500);
     const copy = cloneState(s);
-    REPLAY.inputs.slice(half).forEach((f) => step(s, f));
-    REPLAY.inputs.slice(half).forEach((f) => step(copy, f));
+    const cont = (st: typeof s) => {
+      const cmds = REPLAY.commands!;
+      let c = cmds.findIndex((x) => x.tick > st.tick);
+      if (c < 0) c = cmds.length;
+      while (st.tick < TICKS) {
+        const batch = [];
+        while (c < cmds.length && cmds[c]!.tick === st.tick + 1) batch.push(cmds[c++]!.cmd);
+        step(st, 0, batch);
+      }
+    };
+    cont(s);
+    cont(copy);
     expect(hashState(copy)).toBe(hashState(s));
     expect(hashState(s)).toBe(runReplay(REPLAY).finalHash);
   });
 
-  it('serialise → deserialise round-trip preserves the hash and future', () => {
-    const s = createGame(REPLAY.config);
-    REPLAY.inputs.slice(0, 1000).forEach((f) => step(s, f));
+  it('serialise → deserialise mid-match preserves the hash and the future', () => {
+    const { s, advance } = runLive(1000);
     const restored = deserializeState(serializeState(s));
     expect(hashState(restored)).toBe(hashState(s));
-    REPLAY.inputs.slice(1000).forEach((f) => {
-      step(s, f);
-      step(restored, f);
-    });
+    advance(TICKS);
+    const cmds = REPLAY.commands!;
+    let c = cmds.findIndex((x) => x.tick > restored.tick);
+    while (restored.tick < TICKS) {
+      const batch = [];
+      while (c >= 0 && c < cmds.length && cmds[c]!.tick === restored.tick + 1) batch.push(cmds[c++]!.cmd);
+      step(restored, 0, batch);
+    }
     expect(hashState(restored)).toBe(hashState(s));
   });
 
@@ -78,14 +97,15 @@ describe('determinism', () => {
     const { state } = runReplay(REPLAY);
     const visit = (v: unknown): void => {
       if (typeof v === 'number') expect(Number.isSafeInteger(v)).toBe(true);
+      else if (ArrayBuffer.isView(v)) return;
       else if (Array.isArray(v)) v.forEach(visit);
       else if (v && typeof v === 'object') Object.values(v).forEach(visit);
     };
     visit(state);
   });
 
-  it('golden hash: the demo sim has not changed unintentionally', () => {
+  it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"950a526e"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"f7d109b4"`);
   });
 });

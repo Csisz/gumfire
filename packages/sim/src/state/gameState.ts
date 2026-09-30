@@ -3,7 +3,7 @@ import { Hasher } from '../core/hash.js';
 import { EMPTY_INPUT, type InputFrame } from '../core/input.js';
 import { RNG_STREAMS, createStreams, type RngStreams } from '../core/rng.js';
 import { fromJson, toJson } from '../core/serialize.js';
-import { createDemo, type DemoState } from '../demo/bouncers.js';
+import type { Body } from '../physics/body.js';
 import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../terrain/terrain.js';
 
 /**
@@ -12,16 +12,18 @@ import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../ter
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 2;
+  schema: 3;
   seed: number;
   tick: number;
   rng: RngStreams;
   lastInput: InputFrame;
-  /** Null only in the bouncers demo scene. */
+  /** Null only for map-less unit-test states. */
   terrain: TerrainState | null;
-  /** Water line in whole pixels from the top; anything below drowns (M3). */
+  /** Water line in whole pixels from the top; bodies whose centre reaches it sink. 0 = no water. */
   waterY: number;
-  demo: DemoState;
+  /** Physics bodies in ascending id order. */
+  bodies: Body[];
+  nextBodyId: number;
 }
 
 export interface MapSpec {
@@ -35,23 +37,20 @@ export interface MapSpec {
 export interface GameConfig {
   seed: number;
   map?: MapSpec;
-  demo?: { widthPx: number; heightPx: number; balls: number };
 }
 
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
-  const rng = createStreams(seed);
-  const d = config.demo ?? (config.map ? { widthPx: 960, heightPx: 540, balls: 0 } : { widthPx: 960, heightPx: 540, balls: 8 });
-  const terrain = config.map ? terrainFromMaterials(config.map.width, config.map.height, config.map.mat) : null;
   return {
-    schema: 2,
+    schema: 3,
     seed,
     tick: 0,
-    rng,
+    rng: createStreams(seed),
     lastInput: EMPTY_INPUT,
-    terrain,
+    terrain: config.map ? terrainFromMaterials(config.map.width, config.map.height, config.map.mat) : null,
     waterY: config.map ? Math.trunc(config.map.waterY) : 0,
-    demo: createDemo(d.widthPx, d.heightPx, rng.misc, d.balls),
+    bodies: [],
+    nextBodyId: 1,
   };
 }
 
@@ -65,10 +64,11 @@ export function hashState(s: GameState): number {
   }
   h.bool(s.terrain !== null);
   if (s.terrain) hashTerrainInto(h, s.terrain);
-  h.int(s.waterY);
-  const d = s.demo;
-  h.int(d.width).int(d.height).int(d.nextId).u32(d.balls.length);
-  for (const b of d.balls) h.int(b.id).int(b.x).int(b.y).int(b.vx).int(b.vy).int(b.radius);
+  h.int(s.waterY).int(s.nextBodyId).u32(s.bodies.length);
+  for (const b of s.bodies) {
+    h.int(b.id).int(b.x).int(b.y).int(b.vx).int(b.vy).int(b.radius);
+    h.int(b.restitution).int(b.friction).int(b.gravityScale).bool(b.sleeping).int(b.stillTicks).int(b.drownTicks);
+  }
   return h.digest();
 }
 
@@ -82,6 +82,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 2) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 3) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

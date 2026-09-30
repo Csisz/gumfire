@@ -7,7 +7,9 @@
 export type SimCommand =
   | { type: 'debugCarve'; x: number; y: number; r: number }
   | { type: 'debugTunnel'; x0: number; y0: number; x1: number; y1: number; r: number }
-  | { type: 'debugGirder'; x: number; y: number; w: number; h: number };
+  | { type: 'debugGirder'; x: number; y: number; w: number; h: number }
+  /** Spawn a test body at pixel (x, y) with velocity (vx, vy) in subpixels/tick. */
+  | { type: 'debugSpawn'; x: number; y: number; vx: number; vy: number; r: number };
 
 /** A command applied at the start of simulation tick `tick` (1-based, the tick being computed). */
 export interface TimedCommand {
@@ -35,6 +37,11 @@ export function sanitizeCommand(c: unknown): SimCommand | null {
     case 'debugGirder':
       if (!coords('x', 'y') || !isInt(o.w) || !isInt(o.h) || !inRange(o.w, 1, 512) || !inRange(o.h, 1, 64)) return null;
       return { type: 'debugGirder', x: o.x as number, y: o.y as number, w: o.w, h: o.h };
+    case 'debugSpawn': {
+      const v = (k: string) => isInt(o[k]) && inRange(o[k] as number, -8192, 8192);
+      if (!coords('x', 'y') || !v('vx') || !v('vy') || !isInt(o.r) || !inRange(o.r, 3, 24)) return null;
+      return { type: 'debugSpawn', x: o.x as number, y: o.y as number, vx: o.vx as number, vy: o.vy as number, r: o.r };
+    }
     default:
       return null;
   }

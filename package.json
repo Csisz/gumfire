@@ -17,7 +17,9 @@
     "gen:trig": "node tools/gen-trig-table.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "gen:maps": "node tools/gen-test-maps.mjs",
-    "bench:carve": "node tools/bench/run.mjs tools/bench/carve.bench.ts"
+    "bench:carve": "node tools/bench/run.mjs tools/bench/carve.bench.ts",
+    "bench:physics": "node tools/bench/run.mjs tools/bench/physics.bench.ts",
+    "bench": "pnpm bench:carve && pnpm bench:physics"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

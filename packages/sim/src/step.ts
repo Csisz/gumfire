@@ -1,10 +1,11 @@
 import { sanitizeCommand, type SimCommand } from './core/commands.js';
 import type { SimEvent } from './core/events.js';
 import { sanitizeInput, type InputFrame } from './core/input.js';
-import { stepDemo } from './demo/bouncers.js';
+import { MAX_BODIES, makeBody, stepBodies, wakeBodiesInRect } from './physics/body.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
 import { Mat } from './terrain/terrain.js';
+import { SUB } from './core/units.js';
 
 /** Hard cap on commands applied per tick (protects against hostile or corrupt input). */
 export const MAX_COMMANDS_PER_TICK = 32;
@@ -27,8 +28,14 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
   }
 
   // 2. turn pre-update · 3. character controller · 4. rope · 5. projectiles · 6. triggers
-  // 7. explosions · 8. physics · 9. water · 10. settle detection · 11. turn post-update
-  stepDemo(state.demo, state.rng.misc, state.lastInput, input, state.tick, events);
+  // 7. explosions (M6)
+
+  // 8. physics + 9. water
+  if (state.terrain && state.bodies.length > 0) {
+    state.bodies = stepBodies(state.bodies, state.terrain, state.waterY, state.tick, events);
+  }
+
+  // 10. settle detection · 11. turn post-update (M7)
 
   state.lastInput = input;
   return events;
@@ -37,6 +44,13 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
 function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): void {
   const t = state.terrain;
   if (!t) return;
+  if (cmd.type === 'debugSpawn') {
+    if (state.bodies.length >= MAX_BODIES) return;
+    const id = state.nextBodyId++;
+    state.bodies.push(makeBody(id, cmd.x * SUB + SUB / 2, cmd.y * SUB + SUB / 2, cmd.vx, cmd.vy, { radius: cmd.r }));
+    events.push({ type: 'BodySpawned', tick: state.tick, id });
+    return;
+  }
   let r: EditRect | null = null;
   let cause: 'carve' | 'tunnel' | 'girder';
   switch (cmd.type) {
@@ -53,5 +67,8 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
       cause = 'girder';
       break;
   }
-  if (r) events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
+  if (r) {
+    wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
+    events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
+  }
 }
