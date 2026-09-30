@@ -9,6 +9,7 @@ import { compileWeapons, type WeaponDef, type WeaponJson } from '../weapons/defi
 import type { Projectile } from '../weapons/projectile.js';
 import type { Explosion } from '../explosions/explosion.js';
 import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../terrain/terrain.js';
+import { setupMatch, type MatchConfig, type MatchState } from '../match/match.js';
 
 /**
  * Authoritative simulation state. Everything that affects future ticks lives here,
@@ -16,7 +17,7 @@ import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../ter
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 6;
+  schema: 7;
   seed: number;
   tick: number;
   rng: RngStreams;
@@ -50,6 +51,11 @@ export interface GameState {
    * system (M7) takes over and reveals in its DAMAGE_REVEAL phase.
    */
   autoReveal: boolean;
+  /**
+   * Turn-based match (M7): teams, turn order, phase machine. Null in free play (sandbox tools,
+   * unit tests), where `activeCharacter` is chosen by `debugSelect` and damage auto-reveals.
+   */
+  match: MatchState | null;
 }
 
 export interface MapSpec {
@@ -65,8 +71,10 @@ export interface GameConfig {
   map?: MapSpec;
   /** Authored weapon data (usually `@gumfire/content`'s WEAPONS); compiled at creation. */
   weapons?: readonly WeaponJson[];
-  /** Starting wind; default 0. */
+  /** Starting wind; default 0 (a match rerolls it at every turn). */
   wind?: number;
+  /** Set up a turn-based match: teams are placed and the turn system runs (needs a map). */
+  match?: MatchConfig;
 }
 
 export function hashWeapons(defs: readonly WeaponDef[]): number {
@@ -75,8 +83,8 @@ export function hashWeapons(defs: readonly WeaponDef[]): number {
 
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
-  return {
-    schema: 6,
+  const s: GameState = {
+    schema: 7,
     seed,
     tick: 0,
     rng: createStreams(seed),
@@ -95,7 +103,17 @@ export function createGame(config: GameConfig): GameState {
     pendingExplosions: [],
     quietTicks: 0,
     autoReveal: true,
+    match: null,
   };
+  if (config.match) {
+    if (!s.terrain) throw new Error('a match needs a map');
+    const { match, characters } = setupMatch(config.match, s.terrain, s.waterY, s.rng.mapgen, s.nextCharacterId);
+    s.match = match;
+    s.characters = characters;
+    s.nextCharacterId += characters.length;
+    s.autoReveal = false; // the turn system reveals damage in its own phase (ADR-006)
+  }
+  return s;
 }
 
 function weaponState(list: readonly WeaponJson[]): { weapons: WeaponDef[]; weaponsHash: number } {
@@ -126,7 +144,22 @@ export function hashState(s: GameState): number {
   h.u32(s.pendingExplosions.length);
   for (const e of s.pendingExplosions) h.int(e.x).int(e.y).int(e.radius).int(e.damage).int(e.knockback).bool(e.carve).str(e.cause).int(e.source);
   h.int(s.quietTicks).bool(s.autoReveal);
+  h.bool(s.match !== null);
+  if (s.match) hashMatch(h, s.match);
   return h.digest();
+}
+
+function hashMatch(h: Hasher, m: MatchState): void {
+  h.str(JSON.stringify(m.ruleset)).u32(m.teams.length);
+  for (const t of m.teams) {
+    h.int(t.id).str(t.name).int(t.next).u32(t.characterIds.length);
+    for (const id of t.characterIds) h.int(id);
+  }
+  h.u32(m.order.length);
+  for (const o of m.order) h.int(o);
+  h.int(m.orderPos).str(m.phase).int(m.phaseTicks).int(m.turn).int(m.activeTeam);
+  h.int(m.turnTicksLeft).int(m.retreatTicksLeft).int(m.roundTicksLeft).bool(m.suddenDeath);
+  h.int(m.shotsFired).str(m.result).int(m.winner);
 }
 
 function hashBody(h: Hasher, b: Body): void {
@@ -144,6 +177,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 6) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 7) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

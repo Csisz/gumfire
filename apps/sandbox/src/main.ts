@@ -63,6 +63,9 @@ let recorded: InputFrame[] = [];
 let recordedCmds: TimedCommand[] = [];
 let pendingCmds: SimCommand[] = [];
 let tool: Tool = 'char';
+/** Free play (tools, debugSelect) or a hot-seat match run by the turn system (M7). */
+let mode: 'free' | 'match' = 'free';
+const MATCH_TEAMS = [{ name: 'Sour' }, { name: 'Sweet' }];
 let followActive = true;
 let lastJump = '—';
 let carveR = 48;
@@ -124,6 +127,7 @@ function currentInput(): InputFrame {
   if (down('ArrowDown')) f |= Btn.Down;
   if (down('Enter') || down('NumpadEnter')) f |= Btn.Jump;
   if (down('Space')) f |= Btn.Fire;
+  if (down('Backspace')) f |= Btn.EndTurn;
   deliveredLastTick = deliveredThisTick;
   return f;
 }
@@ -304,6 +308,12 @@ async function main(): Promise<void> {
   windLabel.anchor.set(0.5, 1);
   windGauge.addChild(windGfx, windLabel);
   app.stage.addChild(windGauge);
+  // match status (functional placeholder text; the real HUD is designed at M8)
+  const monoStyle = { fontFamily: 'ui-monospace, monospace', fontWeight: '800' as const, stroke: { color: 0xffffff, width: 4 } };
+  const turnBanner = new Text({ text: '', style: { ...monoStyle, fontSize: 18, fill: 0x2a1f33, align: 'center' } });
+  turnBanner.anchor.set(0.5, 0);
+  const teamPanel = new Container();
+  app.stage.addChild(turnBanner, teamPanel);
   const preview = new Graphics();
   const camera = new Camera(1920, 696);
   camera.setViewport(size.w, size.h);
@@ -361,9 +371,16 @@ async function main(): Promise<void> {
           const v = charViews.get(e.id);
           if (v) v.diedOf = e.reason;
           deaths++;
-          if (e.id === state.activeCharacter) selectNext();
+          if (!state.match && e.id === state.activeCharacter) selectNext();
           break;
         }
+        case 'TurnStarted':
+          followActive = true;
+          blastFocus = null;
+          break;
+        case 'WaterRose':
+          waterView?.setLevel(e.y);
+          break;
         case 'Exploded':
           spawnExplosion(e.x, e.y, e.radius, e.cause === 'death');
           shake = Math.min(12, shake + e.radius / 8);
@@ -409,7 +426,7 @@ async function main(): Promise<void> {
   }
 
   function buildMap(m: LoadedMap): void {
-    config = { seed: config.seed, map: m.spec, weapons: WEAPONS, wind: 0 };
+    config = { seed: config.seed, map: m.spec, weapons: WEAPONS, wind: 0, ...(mode === 'match' ? { match: { teams: MATCH_TEAMS } } : {}) };
     state = createGame(config);
     // The recording starts together with the new state.
     recorded = [];
@@ -436,7 +453,9 @@ async function main(): Promise<void> {
       blast: 'click: explosion (damage 50, knockback 1) · [ ]: radius',
     };
     $('keys').innerHTML =
-      `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>` +
+      (mode === 'match'
+        ? `<b>Hot-seat match:</b> teams take turns on one keyboard · ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Backspace ends the retreat early · R rematch<br>`
+        : `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>`) +
       `Tool: <b>${names[tool]}</b> — ${how[tool]} · Z blast · Shift+click girder · right-drag tunnel · N 50 balls · B 200 craters<br>` +
       'Middle-drag / WASD pan · wheel zoom · F fit · L follow · V verify · R restart · P pause · . step';
   }
@@ -489,6 +508,12 @@ async function main(): Promise<void> {
     sceneId = select.value;
     void loadScene(sceneId);
   };
+  const modeSelect = $('mode') as HTMLSelectElement;
+  modeSelect.onchange = () => {
+    mode = modeSelect.value === 'match' ? 'match' : 'free';
+    if (mode === 'match' && tool === 'char') tool = 'crater';
+    void loadScene(sceneId);
+  };
   sceneId = ids[0] ?? '';
   select.value = sceneId;
   if (sceneId) await loadScene(sceneId);
@@ -525,7 +550,11 @@ async function main(): Promise<void> {
     if (e.code === 'KeyQ') tool = 'crater';
     if (e.code === 'KeyZ') tool = 'blast';
     if (['KeyE', 'KeyQ', 'KeyC', 'KeyZ'].includes(e.code)) updateKeysHelp();
-    if (e.code === 'Tab' && !e.repeat) selectNext();
+    if (e.code === 'Tab' && !e.repeat) {
+      if (state.match) pendingCmds.push({ type: 'nextCharacter' });
+      else selectNext();
+    }
+    if (e.code === 'Backspace') e.preventDefault();
     if (e.code === 'KeyX' && !e.repeat) pendingCmds.push({ type: 'debugRollWind' });
     if (e.code === 'KeyL') followActive = !followActive;
     if (e.code === 'KeyF') {
@@ -630,7 +659,7 @@ async function main(): Promise<void> {
       return;
     }
     if (tool === 'char') {
-      if (pr.dragging) return;
+      if (pr.dragging || state.match) return; // the match places its own teams
       // ids are assigned in order, so the new Gumling's id (and team colour) is predictable
       const newId = state.nextCharacterId + pendingCmds.filter((c) => c.type === 'debugSpawnCharacter').length;
       const team = (newId - 1) % TEAM_COLOURS.length;
@@ -720,6 +749,7 @@ async function main(): Promise<void> {
     drawParticles();
     drawPopups();
     drawWind();
+    drawMatchHud();
     drawPreview();
     drawHud();
   });
@@ -947,6 +977,58 @@ async function main(): Promise<void> {
     windLabel.text = `WIND ${w > 0 ? '→' : w < 0 ? '←' : '·'} ${Math.abs(w)}`;
   }
 
+  function drawMatchHud(): void {
+    const m = state.match;
+    turnBanner.visible = teamPanel.visible = m !== null;
+    if (!m) return;
+    if (waterView) waterView.setLevel(state.waterY);
+    const secs = (t: number) => Math.ceil(t / TICKS_PER_SECOND);
+    const team = m.teams[m.activeTeam];
+    const name = team?.name ?? '';
+    let line: string;
+    switch (m.phase) {
+      case 'turnPrep':
+        line = `Turn ${m.turn} — ${name}, get ready`;
+        break;
+      case 'turnActive':
+        line = `Turn ${m.turn} — ${name} · ${secs(m.turnTicksLeft)} s`;
+        break;
+      case 'retreat':
+        line = `${name} retreat! ${secs(m.retreatTicksLeft)} s  (Backspace: end turn)`;
+        break;
+      case 'settling':
+        line = 'Settling…';
+        break;
+      case 'damageReveal':
+        line = 'Damage';
+        break;
+      case 'matchOver':
+        line = m.result === 'win' ? `${m.teams[m.winner]?.name ?? '?'} wins!  R: rematch` : 'Draw!  R: rematch';
+        break;
+    }
+    const round = m.ruleset.roundTicks > 0 ? (m.suddenDeath ? '  ·  SUDDEN DEATH' : `  ·  round ${Math.floor(secs(m.roundTicksLeft) / 60)}:${String(secs(m.roundTicksLeft) % 60).padStart(2, '0')}`) : '';
+    turnBanner.text = line + round;
+    turnBanner.style.fill = team && m.phase !== 'matchOver' ? TEAM_COLOURS[team.id % TEAM_COLOURS.length]! : 0x2a1f33;
+    turnBanner.position.set(camera.viewW / 2, 10);
+    // team totals, bottom-left
+    if (teamPanel.children.length !== m.teams.length) {
+      teamPanel.removeChildren().forEach((c) => c.destroy());
+      m.teams.forEach((t, i) => {
+        const tx = new Text({ text: '', style: { ...monoStyle, fontSize: 13, fill: TEAM_COLOURS[t.id % TEAM_COLOURS.length]! } });
+        tx.position.set(0, i * 18);
+        teamPanel.addChild(tx);
+      });
+    }
+    m.teams.forEach((t, i) => {
+      const members = state.characters.filter((c) => c.team === t.id);
+      const hp = members.reduce((a, c) => a + (c.state === 'dead' ? 0 : c.hp), 0);
+      const alive = members.filter((c) => c.state !== 'dead').length;
+      const bar = '█'.repeat(Math.ceil((hp / (m.ruleset.hp * t.characterIds.length)) * 20));
+      (teamPanel.children[i] as Text).text = `${t.id === m.activeTeam && m.phase !== 'matchOver' ? '▶' : ' '} ${t.name.padEnd(6)} ${String(hp).padStart(3)} hp  ${alive}/${t.characterIds.length}  ${bar}`;
+    });
+    teamPanel.position.set(12, camera.viewH - 12 - m.teams.length * 18);
+  }
+
   function drawPopups(): void {
     for (let i = popups.length - 1; i >= 0; i--) {
       const p = popups[i]!;
@@ -1016,7 +1098,11 @@ async function main(): Promise<void> {
           `wind <b>${state.wind}</b> · rockets in flight <b>${state.projectiles.length}</b>`,
           `pos <b>${charPx(act)}, ${charPy(act)}</b> · last impact <b>${(act.lastImpact / 256).toFixed(1)} px/t</b>`,
         );
-      } else hud.push('Gumling <b>— press C and click to place one</b>');
+      } else hud.push(state.match ? 'Gumling <b>— none in control</b>' : 'Gumling <b>— press C and click to place one</b>');
+      if (state.match) {
+        const m = state.match;
+        hud.push(`match <b>${m.phase}</b> · turn <b>${m.turn}</b> · team <b>${m.teams[m.activeTeam]?.name ?? '—'}</b> · shots <b>${m.shotsFired}</b>`);
+      }
       hud.push(
         `bodies <b>${bs.length}</b> · asleep <b>${asleep}</b> · sinking <b>${sinking}</b>`,
         `impacts <b>${impacts}</b> · drowned <b>${drowned}</b> · lost <b>${lost}</b>`,

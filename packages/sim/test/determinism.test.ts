@@ -132,6 +132,30 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"f28fe039"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"bad3eef8"`);
+  });
+
+  it('golden hash: a scripted turn-based match (placement, turns, retreats, reveals, sudden death)', () => {
+    const inputs = Array.from({ length: 6000 }, (_, t) => {
+      const k = t % 400;
+      if (k < 25) return Btn.Up;
+      if (k >= 60 && k < 100) return Btn.Fire;
+      if (k >= 100 && k < 130) return t % 800 < 400 ? Btn.Left : Btn.Right;
+      if (k === 131) return Btn.Jump;
+      return 0;
+    });
+    const replay: Replay = {
+      config: {
+        seed: 7,
+        map: arenaMap(),
+        weapons: [ROCKET_JSON],
+        match: { teams: [{ name: 'Sour', size: 3 }, { name: 'Sweet', size: 3 }], ruleset: { turnSeconds: 8, roundSeconds: 40 } },
+      },
+      inputs,
+    };
+    const res = runReplay(replay);
+    expect(res.state.match!.turn).toBeGreaterThan(8);
+    expect(hashState(deserializeState(serializeState(res.state)))).toBe(res.finalHash);
+    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"5c6e3483"`);
   });
 });

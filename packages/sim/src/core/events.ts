@@ -31,4 +31,14 @@ export type SimEvent =
   | { type: 'ProjectileSplashed'; tick: number; id: number; x: number; y: number }
   | { type: 'ProjectileLost'; tick: number; id: number }
   | { type: 'WindChanged'; tick: number; wind: number }
-  | { type: 'WeaponSelected'; tick: number; id: number; weapon: number };
+  | { type: 'WeaponSelected'; tick: number; id: number; weapon: number }
+  // ---- turn system (M7)
+  | { type: 'TurnPhaseChanged'; tick: number; phase: 'turnPrep' | 'turnActive' | 'retreat' | 'settling' | 'damageReveal' | 'matchOver'; turn: number }
+  /** A new turn: `team` plays with character `id`. */
+  | { type: 'TurnStarted'; tick: number; turn: number; team: number; id: number }
+  | { type: 'RetreatStarted'; tick: number; id: number; ticks: number }
+  | { type: 'ControlEnded'; tick: number; id: number; reason: 'timeout' | 'damage' | 'water' | 'retreatOver' | 'endTurn' }
+  | { type: 'SuddenDeath'; tick: number; mode: 'hpToOne' | 'water' | 'both' | 'roundEnds' }
+  | { type: 'WaterRose'; tick: number; y: number }
+  /** `winner` = team id, −1 for a draw. */
+  | { type: 'MatchEnded'; tick: number; result: 'win' | 'draw'; winner: number };

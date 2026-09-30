@@ -7,6 +7,7 @@ import { rollWind } from './environment/wind.js';
 import { makeProjectile, stepProjectile } from './weapons/projectile.js';
 import { blastBodies, blastCharacters, type Explosion } from './explosions/explosion.js';
 import { stepSettle } from './explosions/resolve.js';
+import { controlOf, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, stepTurn } from './turn/turn.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
 import { Mat } from './terrain/terrain.js';
@@ -93,18 +94,23 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
     if (cmd) applyCommand(state, cmd, events);
   }
 
-  // 2. turn pre-update (M7)
-  // 3. character controller (+ airborne characters' physics). Only the active character
+  // 2. turn pre-update: who is in control this tick, and with which buttons
+  const control = controlOf(state);
+  const charInput = maskInput(state, input);
+  const charPrev = maskInput(state, state.lastInput);
+  // 3. character controller (+ airborne characters' physics). Only the controlled character
   //    receives input; the others idle, fall, land and drown on their own.
   if (state.terrain) {
     for (const c of state.characters) {
       const weapon = state.weapons[c.weapon] ?? null;
-      const power = stepCharacter(c, state.terrain, state.waterY, state.tick, c.id === state.activeCharacter, input, state.lastInput, events, weapon);
+      const controlled = control.id !== 0 && c.id === control.id;
+      const power = stepCharacter(c, state.terrain, state.waterY, state.tick, controlled, charInput, charPrev, events, weapon);
       if (power >= 0 && weapon && state.projectiles.length < MAX_PROJECTILES) {
         const id = state.nextProjectileId++;
         const p = makeProjectile(id, c.weapon, weapon, c, power);
         state.projectiles.push(p);
         events.push({ type: 'ProjectileFired', tick: state.tick, id, weapon: c.weapon, owner: c.id, power, speed: ilength(p.vx, p.vy), x: p.x >> 8, y: p.y >> 8 });
+        onShotFired(state, weapon, events);
       }
     }
   }
@@ -119,8 +125,9 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
     state.bodies = stepBodies(state.bodies, state.terrain, state.waterY, state.tick, events);
   }
 
-  // 10. settle detection (+ damage reveal until the turn system owns it) · 11. turn post-update (M7)
+  // 10. settle detection (+ auto damage reveal in free play) · 11. turn post-update
   stepSettle(state, events);
+  stepTurn(state, input, state.lastInput, events);
 
   state.lastInput = input;
   return events;
@@ -136,7 +143,12 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
     events.push({ type: 'CharacterSpawned', tick: state.tick, id, team: cmd.team });
     return;
   }
+  if (cmd.type === 'nextCharacter') {
+    selectNextInTeam(state, events);
+    return;
+  }
   if (cmd.type === 'debugSelect') {
+    if (state.match) return; // the turn system owns selection in a match
     const ok = cmd.id === 0 || state.characters.some((c) => c.id === cmd.id && c.state !== 'dead');
     if (ok && state.activeCharacter !== cmd.id) {
       state.activeCharacter = cmd.id;
@@ -146,7 +158,7 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
   }
   if (cmd.type === 'selectWeapon') {
     const c = state.characters.find((x) => x.id === state.activeCharacter);
-    if (c && cmd.index < state.weapons.length && c.state !== 'charging' && c.weapon !== cmd.index) {
+    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && c.state !== 'charging' && c.weapon !== cmd.index) {
       c.weapon = cmd.index;
       events.push({ type: 'WeaponSelected', tick: state.tick, id: c.id, weapon: cmd.index });
     }

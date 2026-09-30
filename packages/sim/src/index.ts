@@ -21,3 +21,6 @@ export * from './weapons/projectile.js';
 export * from './environment/wind.js';
 export * from './explosions/explosion.js';
 export * from './explosions/resolve.js';
+export * from './match/ruleset.js';
+export * from './match/match.js';
+export * from './turn/turn.js';

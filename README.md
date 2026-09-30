@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M6 — explosions, damage, knockback** complete (M0–M5 before it: sandbox, terrain, destruction, physics, characters, aim/projectile/wind). See [`docs/progress`](docs/progress).
+> Status: **M7 — turn system and teams** complete (M0–M6 before it: sandbox, terrain, destruction, physics, characters, aim/projectile/wind, explosions/damage). Next: M8 vertical slice. See [`docs/progress`](docs/progress).
 
 ## Quick start
 
@@ -16,7 +16,8 @@ pnpm check        # lint + typecheck + tests + build (what CI runs)
 pnpm bench        # crater and physics cost on bundled code
 ```
 
-Sandbox (pick a map). **Play:** C then click places a Gumling; ←/→ walk, ↑/↓ aim, hold Space
+Sandbox (pick a map and a mode — Free play or Hot-seat match). **Match:** teams take turns;
+Backspace ends the retreat early, R starts a rematch. **Play:** C then click places a Gumling; ←/→ walk, ↑/↓ aim, hold Space
 to charge and release to fire the Pepper Rocket, Enter jump, Enter×2 backflip, Tab next Gumling,
 X new wind, L toggle follow camera. **Tools:** E candy ball (click
 drop, drag slingshot), Q crater (`[`/`]` size), Z blast (damage + knockback), Shift+click girder, right-drag tunnel, N 50
@@ -37,6 +38,8 @@ packages/sim/     PURE deterministic simulation — no DOM, no Pixi, no Math.ran
   src/weapons/    WeaponJson → WeaponDef compiler, projectiles (flight, wind, impacts)
   src/environment/ wind
   src/explosions/ blast falloff/knockback, explosion queue, settle-then-reveal damage (ADR-006)
+  src/match/      ruleset (seconds → ticks), teams, placement, turn order, victory
+  src/turn/       turn phase machine: prep, active, retreat, settling, reveal, sudden death
   src/state/      GameState, create/hash/clone/serialise
   src/step.ts     one 20 ms tick, canonical system order
   src/replay.ts   seed + input frames → state + checkpoint hashes
