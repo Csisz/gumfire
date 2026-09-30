@@ -242,8 +242,33 @@ export class WorldView {
       v.pending.text = `−${c.pendingDamage}`;
       const active = c.id === s.activeCharacter && !dead;
       v.marker.visible = active;
-      v.marker.position.set(0, -50 + Math.sin(now * 0.006) * 3);
       if (active) this.drawAim(c, x, y);
+    }
+    this.declutterLabels(now);
+  }
+
+  /**
+   * Gumlings standing close together would stack their name + hp labels on top of each other;
+   * lift a label one row per neighbour it would overlap (greedy, left to right).
+   */
+  private declutterLabels(now: number): void {
+    const placed: Array<{ x: number; y: number; level: number }> = [];
+    const views = [...this.chars.values()].filter((v) => v.root.visible && v.name.visible).sort((a, b) => a.root.x - b.root.x);
+    for (const v of views) {
+      const x = v.root.x, y = v.root.y;
+      let level = 0;
+      while (placed.some((p) => p.level === level && Math.abs(p.x - x) < 44 && Math.abs(p.y - y) < 30)) level++;
+      placed.push({ x, y, level });
+      const lift = level * 24;
+      v.name.y = -34 - lift;
+      v.hp.y = -23 - lift;
+      v.pending.y = -23 - lift;
+    }
+    // the active marker floats above the whole stack it belongs to, never between labels
+    for (const v of views) {
+      if (!v.marker.visible) continue;
+      const top = Math.max(0, ...placed.filter((p) => Math.abs(p.x - v.root.x) < 44 && Math.abs(p.y - v.root.y) < 30).map((p) => p.level));
+      v.marker.position.set(0, -50 - top * 24 + Math.sin(now * 0.006) * 3);
     }
   }
 

@@ -21,9 +21,12 @@ export class Background {
 
   constructor(private readonly worldW: number, private readonly worldH: number) {
     this.container.addChild(this.sky);
+    // far layer paler than the mid layer so the two never read as one muddle
+    const far = this.farFactory();
+    far.alpha = 0.55;
     const mid = this.midTreats();
-    mid.alpha = 0.8;
-    this.layers.push({ c: this.farFactory(), depth: 0.25 }, { c: mid, depth: 0.55 });
+    mid.alpha = 0.85;
+    this.layers.push({ c: far, depth: 0.25 }, { c: mid, depth: 0.55 });
     for (const l of this.layers) this.container.addChild(l.c);
     for (let i = 0; i < 70; i++) {
       const g = new Graphics().circle(0, 0, 1 + Math.random() * 1.6).fill({ color: 0xffffff, alpha: 0.85 });
@@ -72,10 +75,8 @@ export class Background {
     // stacked ice cubes
     for (let k = 0; k < 3; k++) g.roundRect(W * 0.55 + k * 70, base - 70, 64, 64, 10).fill({ color: 0xe6f6ff, alpha: 0.9 }).stroke(ink);
     g.roundRect(W * 0.55 + 35, base - 136, 64, 64, 10).fill({ color: 0xe6f6ff, alpha: 0.9 }).stroke(ink);
-    const t = new Text({ text: 'SWEET\nFREEZE', style: { fontFamily: 'Fredoka, sans-serif', fontSize: 30, fontWeight: '700', fill: 0x8fb6d2, align: 'center' } });
-    t.anchor.set(0.5);
-    t.position.set(W * 0.02 + 140, base - 190);
-    c.addChild(g, t);
+    // no words on the mid layer: labels on two parallax layers slide over each other
+    c.addChild(g);
     return c;
   }
 

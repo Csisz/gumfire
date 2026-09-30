@@ -65,7 +65,7 @@ export const CHAR = {
   jumpPrepTicks: 10,
   landingTicks: 8,
   forwardJump: { vx: toSub(2.5), vy: -toSub(4.5) },
-  backflip: { vx: -toSub(1.1), vy: -toSub(7.2) },
+  backflip: { vx: -toSub(2.3), vy: -toSub(7.2) }, // M8 playtest: travel further back (≈165 px on flat ground)
   /** Horizontal speed when walking off a ledge. */
   walkOffVx: toSub(0.6),
   /** Steepest surface a character can land and stand on: normal within 60° of up (cos 60° = 0.5). */

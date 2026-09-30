@@ -12,8 +12,8 @@ import { launchVector } from './projectile.js';
  * the damage as pending damage (ADR-006) and is launched along the aim at `impulse`, nudged
  * slightly upward so a level swing lifts instead of scraping along the ground.
  */
-/** Upward share of the launch, ×256 of the impulse (≈ 0.19). */
-export const MELEE_UP_BIAS = 48;
+/** Upward share of the launch, ×256 of the impulse (≈ 0.25; M8 playtest: hits should send targets flying). */
+export const MELEE_UP_BIAS = 64;
 
 export function meleeSwing(attacker: Character, weaponIndex: number, def: WeaponDef, chars: readonly Character[], tick: number, events: SimEvent[]): number[] {
   const dir = launchVector(attacker.aim, attacker.facing, SUB); // unit ×256, screen y down

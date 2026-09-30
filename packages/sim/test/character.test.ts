@@ -164,7 +164,7 @@ describe('ledges and fall damage', () => {
   });
 
   it('a backflip on flat ground never hurts', () => {
-    const { s, c } = setup(150, 500);
+    const { s, c } = setup(260, 500);
     hold(s, Btn.Jump, 1);
     hold(s, 0, 2);
     hold(s, Btn.Jump, 1);
@@ -190,7 +190,7 @@ describe('jumping', () => {
   });
 
   it('double-tap makes a backflip: higher, backwards', () => {
-    const { s, c } = setup(150, 500);
+    const { s, c } = setup(260, 500);
     hold(s, Btn.Right, 1);
     const x0 = charPx(c);
     const y0 = charPy(c);
@@ -205,7 +205,7 @@ describe('jumping', () => {
     }
     expect(ev).toContainEqual(expect.objectContaining({ type: 'CharacterJumped', kind: 'backflip' }));
     expect(y0 - apex).toBeGreaterThanOrEqual(120); // plan: reaches ledges ≈ 125 px up
-    expect(charPx(c)).toBeLessThan(x0);
+    expect(x0 - charPx(c)).toBeGreaterThan(140); // M8 playtest: a real leap back, not a hop
     expect(c.facing).toBe(1); // a backflip keeps facing
   });
 

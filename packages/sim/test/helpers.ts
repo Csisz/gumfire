@@ -112,7 +112,7 @@ export const PIN_JSON: WeaponJson = {
   name: 'Rolling Pin',
   category: 'melee',
   input: { mode: 'instant' },
-  melee: { reach: 18, arcDegrees: 100, damage: 30, impulse: 10 },
+  melee: { reach: 18, arcDegrees: 100, damage: 30, impulse: 15 },
   ammo: { default: 'inf' },
   turn: { endsTurn: true, shotsPerTurn: 1 },
 };

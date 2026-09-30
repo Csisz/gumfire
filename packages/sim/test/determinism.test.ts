@@ -160,7 +160,7 @@ describe('determinism (physics arena)', () => {
     const res = runReplay(replay);
     expect(res.state.match!.turn).toBeGreaterThan(8);
     expect(hashState(deserializeState(serializeState(res.state)))).toBe(res.finalHash);
-    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"f4a15ca8"`);
+    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"5c74c658"`);
   });
 
   it('golden: a whole match played to the end (sudden death water finishes it)', () => {
@@ -183,6 +183,6 @@ describe('determinism (physics arena)', () => {
     expect(s.match!.phase).toBe('matchOver');
     const res = runReplay({ config, inputs, commands });
     expect(res.finalHash).toBe(hashState(s));
-    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:2948:db01340d"`);
+    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:2948:423faa0"`);
   });
 });

@@ -4,7 +4,7 @@
   "category": "melee",
   "description": "One big swing at whoever stands in front. Aim decides where they fly.",
   "input": { "mode": "instant" },
-  "melee": { "reach": 18, "arcDegrees": 100, "damage": 30, "impulse": 10 },
+  "melee": { "reach": 18, "arcDegrees": 100, "damage": 30, "impulse": 15 },
   "ammo": { "default": "inf" },
   "turn": { "endsTurn": true, "shotsPerTurn": 1 }
 }

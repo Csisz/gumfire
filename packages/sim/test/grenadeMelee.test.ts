@@ -65,7 +65,7 @@ describe('weapon definitions (M8 blocks)', () => {
     expect(() => compileWeapon(noBounce)).toThrow(/bounce/);
     expect(() => compileWeapon({ ...ROCKET_JSON, category: 'strike' as never })).toThrow(WeaponDefinitionError);
     const pin = compileWeapon(PIN_JSON);
-    expect(pin).toMatchObject({ category: 'melee', instant: true, meleeReach: 18, meleeDamage: 30, meleeImpulse: 10 * SUB });
+    expect(pin).toMatchObject({ category: 'melee', instant: true, meleeReach: 18, meleeDamage: 30, meleeImpulse: 15 * SUB });
     expect(pin.meleeArcCos).toBeGreaterThan(150); // cos 50° ≈ 0.64
     expect(pin.meleeArcCos).toBeLessThan(180);
   });
@@ -160,11 +160,15 @@ describe('Rolling Pin', () => {
     expect(ofType(ev, 'MeleeSwing')).toEqual([expect.objectContaining({ id: 1, hits: [2] })]);
     expect(ofType(ev, 'CharacterHit')).toEqual([expect.objectContaining({ id: 2, damage: 30 })]);
     expect(target.state).toBe('air');
-    expect(target.body.vx).toBeGreaterThan(9 * SUB);
+    expect(target.body.vx).toBeGreaterThan(14 * SUB);
     expect(target.body.vy).toBeLessThan(0);
     expect(target.fallImmune).toBe(true);
-    run(s, repeat(0, 200));
-    expect(charPx(target)).toBeGreaterThan(420); // flew most of the way to the wall at x=500
+    let maxX = 0;
+    for (let i = 0; i < 200; i++) {
+      step(s, 0);
+      maxX = Math.max(maxX, charPx(target));
+    }
+    expect(maxX).toBeGreaterThan(480); // sent flying 160 px into the wall at x=500 at x=500
   });
 
   it('misses targets behind or out of reach; aiming up launches upward', () => {

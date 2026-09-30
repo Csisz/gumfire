@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M8 — vertical slice** built (M0–M7 before it). Waiting for the slice playtest (gate before M9).
+> Status: **M8 — vertical slice** built (M0–M7 before it). Playtest round 1 tuned; M9 (weapon framework) next. Phase 2 design (M21–M28): master plan §26.
 
 ## Quick start
 
