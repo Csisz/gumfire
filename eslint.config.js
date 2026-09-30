@@ -11,7 +11,7 @@ import globals from 'globals';
 const nondeterministicMath = ['random', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'pow', 'exp', 'log', 'log2', 'log10', 'hypot', 'cbrt', 'sqrt', 'sinh', 'cosh', 'tanh', 'expm1', 'log1p', 'fround'];
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.tsbuildinfo', 'coverage/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.tsbuildinfo', 'coverage/**', 'tools/bench/.out/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

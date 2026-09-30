@@ -6,7 +6,9 @@ Status: accepted (M1) · Plan: §8
 - The sim owns `TerrainState`: one byte per pixel (`Mat.AIR/SOIL/ROCK/GIRDER/BORDER`), row-major,
   y down, whole-pixel coordinates. Outside the map reads as AIR (open maps).
 - The bitmap is split into 64×64 chunks. Per chunk the sim keeps a solid-pixel count
-  (collision early-outs) and an FNV-1a hash of its bytes.
+  (collision early-outs) and a hash. Since M2 the hash is a position-weighted sum
+  Σ mat[i]·pixelWeight(i) mod 2³², so edits update it in O(changed pixels) rather than
+  rehashing whole chunks (an r=100 crater costs ~0.2 ms).
 - The game state hash includes size, `version` and every chunk hash, so hashing is O(chunks)
   (330 for 1920×696), not O(pixels).
 - A per-chunk `dirty` flag tells the renderer what to repaint. It is presentation bookkeeping:
@@ -25,7 +27,10 @@ Every collision query becomes an array lookup with no rebuild step after destruc
 Chunks bound both the hash cost and the GPU upload cost of an explosion.
 
 ## Consequences
-- Edit operations (carve/add, M2) must call `recomputeChunk` and `markDirtyRect` for every
-  chunk they touch and bump `version`.
+- Edit operations must update chunk data incrementally (`setPixelTracked`, or the batched
+  loop in `carveCircle`), call `markDirtyRect` and bump `version`. They reach the sim only as
+  commands, so every edit is recorded and replayable.
+- The renderer keeps a copy of the loaded bitmap to draw damage (back wall, scorch) and keeps
+  frosting on the original surface.
 - Loose soil does not fall (classic behaviour); floating islands are expected.
 - A 3840×1392 map uses 5.3 MB for materials and 21 MB for the renderer's colour buffer.

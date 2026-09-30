@@ -132,21 +132,62 @@ export function chunkRect(t: TerrainState, index: number): { x0: number; y0: num
   return { x0, y0, x1: Math.min(t.width, x0 + CHUNK_SIZE) - 1, y1: Math.min(t.height, y0 + CHUNK_SIZE) - 1 };
 }
 
-/** Recount and rehash one chunk. Call after editing its pixels. */
+/**
+ * Fixed pseudo-random odd weight for pixel index i (a 32-bit integer mix).
+ *
+ * Chunk hashes are position-weighted sums: chunkHash = Σ mat[i] · pixelWeight(i) (mod 2³²).
+ * Unlike a streaming hash this is *incremental*: changing one pixel from a to b adds
+ * (b − a) · pixelWeight(i), so an explosion pays per changed pixel, not per chunk byte.
+ * Good enough for desync detection (it is not a cryptographic hash).
+ */
+export function pixelWeight(i: number): number {
+  let h = Math.imul(i ^ 0x9e3779b9, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h | 1) >>> 0;
+}
+
+/**
+ * Set one pixel's material and update its chunk's solid count and hash incrementally.
+ * `i` = y * width + x. The caller is responsible for dirty marking and `version`.
+ */
+export function setPixelTracked(t: TerrainState, i: number, x: number, y: number, m: number): void {
+  const old = t.mat[i]!;
+  if (old === m) return;
+  t.mat[i] = m;
+  const c = (y >> CHUNK_SHIFT) * t.chunksX + (x >> CHUNK_SHIFT);
+  t.chunkSolid[c] = t.chunkSolid[c]! + (m !== 0 ? 1 : 0) - (old !== 0 ? 1 : 0);
+  t.chunkHash[c] = (t.chunkHash[c]! + Math.imul(m - old, pixelWeight(i))) >>> 0;
+}
+
+/** Recount and rehash one chunk from scratch (map load, or verification). */
 export function recomputeChunk(t: TerrainState, index: number): void {
   const { x0, y0, x1, y1 } = chunkRect(t, index);
-  const h = new Hasher();
+  const mat = t.mat;
+  let h = 0;
   let solid = 0;
   for (let y = y0; y <= y1; y++) {
     const row = y * t.width;
-    for (let x = x0; x <= x1; x++) {
-      const m = t.mat[row + x]!;
-      if (m !== Mat.AIR) solid++;
-      h.u8(m);
+    for (let i = row + x0, end = row + x1; i <= end; i++) {
+      const m = mat[i]!;
+      if (m !== 0) {
+        solid++;
+        h = (h + Math.imul(m, pixelWeight(i))) | 0;
+      }
     }
   }
   t.chunkSolid[index] = solid;
-  t.chunkHash[index] = h.digest();
+  t.chunkHash[index] = h >>> 0;
+}
+
+/** Recompute every chunk overlapping the (clipped, inclusive) pixel rect. */
+export function recomputeChunksInRect(t: TerrainState, x0: number, y0: number, x1: number, y1: number): void {
+  const cx0 = Math.max(0, x0 >> CHUNK_SHIFT);
+  const cy0 = Math.max(0, y0 >> CHUNK_SHIFT);
+  const cx1 = Math.min(t.chunksX - 1, x1 >> CHUNK_SHIFT);
+  const cy1 = Math.min(t.chunksY - 1, y1 >> CHUNK_SHIFT);
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) recomputeChunk(t, cy * t.chunksX + cx);
 }
 
 export function recomputeAllChunks(t: TerrainState): void {

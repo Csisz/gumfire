@@ -75,3 +75,51 @@ describe('terrain painter', () => {
     expect(performance.now() - t0).toBeLessThan(1500);
   });
 });
+
+describe('terrain painter — damage rendering with the original bitmap', () => {
+  // 160×120: soil below y=30. Carve a disc (r=20) centred at (80, 70), fully inside the soil.
+  const width = 160, height = 120;
+  const original = new Uint8Array(width * height);
+  for (let i = width * 30; i < original.length; i++) original[i] = SOIL;
+  const mat = original.slice();
+  const cx = 80, cy = 70, r = 20;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) mat[y * width + x] = AIR;
+  const t: TerrainLike = { width, height, mat };
+  const out = new Uint8Array(width * height * 4);
+  paintTerrain(t, BIRTHDAY_THEME, out, original);
+  const rgb = (x: number, y: number) => px(out, t, x, y).slice(0, 3).join(',');
+  const c = (v: readonly number[]) => v.join(',');
+  const th = BIRTHDAY_THEME;
+
+  it('fills carved-out pixels with the opaque back wall; open sky stays transparent', () => {
+    expect(px(out, t, cx, cy)[3]).toBe(255);
+    expect([c(th.backWall), c(th.backWallDark)]).toContain(rgb(cx, cy));
+    expect(px(out, t, 10, 10)[3]).toBe(0);
+  });
+
+  it('outlines the crater rim and scorches the soil just beyond it', () => {
+    expect(rgb(cx, cy + r + 1)).toBe(c(th.outline));
+    expect(rgb(cx, cy + r + 3)).toBe(c(th.scorchDark));
+    const far = rgb(cx, cy + r + 25);
+    expect([c(th.scorch), c(th.scorchDark)]).not.toContain(far);
+  });
+
+  it('does not frost the crater floor (frosting follows the original surface)', () => {
+    const frost = [c(th.frosting), c(th.frostingShade), c(th.drip)];
+    for (let y = cy + r + 1; y < cy + r + 12; y++) expect(frost).not.toContain(rgb(cx, y));
+    expect(frost).toContain(rgb(20, 34)); // the untouched original surface keeps its crust
+  });
+
+  it('without the original bitmap, carved soil is plain transparent air (M1 behaviour)', () => {
+    const plain = new Uint8Array(out.length);
+    paintTerrain(t, BIRTHDAY_THEME, plain);
+    expect(px(plain, t, cx, cy)[3]).toBe(0);
+  });
+
+  it('partial repaint around the crater matches the full paint exactly', () => {
+    const partial = new Uint8Array(out.length);
+    paintTerrainRect(t, BIRTHDAY_THEME, partial, 50, 40, 110, 100, original);
+    for (let y = 40; y <= 100; y++) for (let x = 50; x <= 110; x++) expect(px(partial, t, x, y)).toEqual(px(out, t, x, y));
+  });
+});

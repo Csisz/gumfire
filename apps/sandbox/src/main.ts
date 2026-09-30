@@ -15,9 +15,12 @@ import {
   runReplay,
   step,
   subToPxFloat,
+  MAX_COMMANDS_PER_TICK,
   type GameConfig,
   type GameState,
   type InputFrame,
+  type SimCommand,
+  type TimedCommand,
 } from '@gumfire/sim';
 import { BIRTHDAY_THEME, Camera, TerrainView, WaterView } from '@gumfire/render';
 import { FixedStepLoop } from './fixedStepLoop';
@@ -27,6 +30,7 @@ import { loadMap, loadMapIndex, type LoadedMap } from './mapLoader';
  * Technical sandbox.
  * - M0 scene "bouncers": fixed 50 Hz sim, interpolation, input recording, replay verification.
  * - M1 map scenes: terrain from a PNG mask, chunked textures with crust, water, pan/zoom camera.
+ * - M2 destruction tools: every edit is a recorded sim command, so it replays exactly.
  */
 
 const TEAM_COLOURS = [0x8fd14f, 0xe8364f, 0x3fa9f5, 0x9b59d0, 0xff9f1c, 0x3a3a44];
@@ -42,6 +46,15 @@ let sceneId = BOUNCERS;
 let config: GameConfig = { seed: 20260930 };
 let state: GameState = createGame(config);
 let recorded: InputFrame[] = [];
+let recordedCmds: TimedCommand[] = [];
+/** Commands waiting for the next tick(s). The stress test feeds this 10 per tick. */
+let pendingCmds: SimCommand[] = [];
+const STRESS_PER_TICK = 10;
+let carveR = 48;
+let craters = 0;
+let worstStepMs = 0;
+let worstStepDecay = 0;
+let onEvents: (events: ReturnType<typeof step>) => void = () => {};
 let prevPos = new Map<number, { x: number; y: number }>();
 let paused = false;
 let interpolate = true;
@@ -68,14 +81,22 @@ function simTick(): void {
   prevPos = new Map(state.demo.balls.map((b) => [b.id, { x: b.x, y: b.y }]));
   const input = currentInput();
   recorded.push(input);
+  const batch = pendingCmds.splice(0, Math.min(STRESS_PER_TICK, MAX_COMMANDS_PER_TICK));
+  for (const cmd of batch) recordedCmds.push({ tick: state.tick + 1, cmd });
   const t0 = performance.now();
-  step(state, input);
-  stepTimeAvg = stepTimeAvg * 0.95 + (performance.now() - t0) * 0.05;
+  const events = step(state, input, batch);
+  const ms = performance.now() - t0;
+  stepTimeAvg = stepTimeAvg * 0.95 + ms * 0.05;
+  if (ms > worstStepMs) {
+    worstStepMs = ms;
+    worstStepDecay = 150;
+  } else if (--worstStepDecay <= 0) worstStepMs = ms;
+  onEvents(events);
 }
 
 function verify(): void {
   const t0 = performance.now();
-  const replay = runReplay({ config, inputs: recorded });
+  const replay = runReplay({ config, inputs: recorded, commands: recordedCmds });
   const ms = performance.now() - t0;
   const live = hashState(state);
   const ok = replay.finalHash === live && replay.state.tick === state.tick;
@@ -125,6 +146,16 @@ async function main(): Promise<void> {
   const camera = new Camera(960, 540);
   camera.setViewport(size.w, size.h);
   let cursorWorld: { x: number; y: number } | null = null;
+  const preview = new Graphics();
+
+  onEvents = (events) => {
+    for (const e of events) {
+      if (e.type === 'TerrainChanged') {
+        terrainView?.invalidateRect(e.x0, e.y0, e.x1, e.y1);
+        if (e.cause === 'carve') craters++;
+      }
+    }
+  };
 
   function clearScene(): void {
     terrainView?.destroy();
@@ -137,6 +168,10 @@ async function main(): Promise<void> {
     world.removeChildren();
     prevPos.clear();
     recorded = [];
+    recordedCmds = [];
+    pendingCmds = [];
+    craters = 0;
+    worstStepMs = 0;
     loop.reset();
     $('verdict').textContent = '';
     $('error').textContent = '';
@@ -164,11 +199,12 @@ async function main(): Promise<void> {
     const t = state.terrain!;
     terrainView = new TerrainView(t, BIRTHDAY_THEME);
     waterView = new WaterView(t.width, t.height, state.waterY);
-    world.addChild(terrainView.container, waterView.container);
+    world.addChild(terrainView.container, waterView.container, preview);
     camera.setWorld(t.width, t.height);
     camera.fitWorld();
     $('keys').innerHTML =
-      'Drag: pan · Wheel: zoom at cursor · WASD/arrows: pan · +/−: zoom · F: fit · 1: 100% · U: repaint all chunks (upload budget test) · V verify · R restart';
+      'Click: crater · Shift+click: girder · Right-drag: tunnel · [ ]: crater size · B: 200-crater stress test · ' +
+      'Drag: pan · Wheel: zoom · WASD/arrows: pan · F: fit · 1: 100% · U: repaint all · V verify · R restart';
   }
 
   async function loadScene(id: string): Promise<void> {
@@ -235,6 +271,21 @@ async function main(): Promise<void> {
       if (e.code === 'Equal' || e.code === 'NumpadAdd') camera.zoomAt(1.25, centre().x, centre().y);
       if (e.code === 'Minus' || e.code === 'NumpadSubtract') camera.zoomAt(0.8, centre().x, centre().y);
       if (e.code === 'KeyU' && state.terrain) markDirtyRect(state.terrain, 0, 0, state.terrain.width - 1, state.terrain.height - 1);
+      if (e.code === 'BracketLeft') carveR = Math.max(4, carveR - 4);
+      if (e.code === 'BracketRight') carveR = Math.min(160, carveR + 4);
+      if (e.code === 'KeyB' && state.terrain) {
+        // 200 craters across the terrain band, 10 per tick. Math.random is fine here: the
+        // resulting commands are recorded, so the replay is still exact.
+        const t = state.terrain;
+        for (let k = 0; k < 200; k++) {
+          pendingCmds.push({
+            type: 'debugCarve',
+            x: Math.floor(Math.random() * t.width),
+            y: Math.floor(t.height * 0.35 + Math.random() * t.height * 0.6),
+            r: 20 + Math.floor(Math.random() * 50),
+          });
+        }
+      }
     }
   });
   window.addEventListener('keyup', (e) => held.delete(e.code));
@@ -246,28 +297,50 @@ async function main(): Promise<void> {
     const r = canvas.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * camera.viewW, y: ((e.clientY - r.top) / r.height) * camera.viewH };
   };
-  let drag: { x: number; y: number; id: number } | null = null;
+  // Left button: click = crater (shift: girder), drag = pan. Right button: drag = tunnel.
+  const DRAG_THRESHOLD = 5;
+  let press: { x: number; y: number; id: number; button: number; shift: boolean; panning: boolean; world: { x: number; y: number } } | null = null;
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
     if (!isMap()) return;
-    drag = { ...toView(e), id: e.pointerId };
+    const p = toView(e);
+    press = { ...p, id: e.pointerId, button: e.button, shift: e.shiftKey, panning: false, world: camera.screenToWorld(p.x, p.y) };
     canvas.setPointerCapture(e.pointerId);
-    canvas.classList.add('dragging');
   });
   canvas.addEventListener('pointermove', (e) => {
     const p = toView(e);
     cursorWorld = camera.screenToWorld(p.x, p.y);
-    if (drag && drag.id === e.pointerId) {
-      camera.panByScreen(p.x - drag.x, p.y - drag.y);
-      drag.x = p.x;
-      drag.y = p.y;
+    if (!press || press.id !== e.pointerId || press.button !== 0) return;
+    if (!press.panning && Math.hypot(p.x - press.x, p.y - press.y) > DRAG_THRESHOLD) {
+      press.panning = true;
+      canvas.classList.add('dragging');
+    }
+    if (press.panning) {
+      camera.panByScreen(p.x - press.x, p.y - press.y);
+      press.x = p.x;
+      press.y = p.y;
     }
   });
-  const endDrag = (e: PointerEvent) => {
-    if (drag && drag.id === e.pointerId) drag = null;
+  const endPress = (e: PointerEvent, cancelled: boolean) => {
+    if (!press || press.id !== e.pointerId) return;
+    const pr = press;
+    press = null;
     canvas.classList.remove('dragging');
+    if (cancelled) return;
+    const w = camera.screenToWorld(toView(e).x, toView(e).y);
+    const wx = Math.floor(w.x), wy = Math.floor(w.y);
+    if (pr.button === 2) {
+      const sx = Math.floor(pr.world.x), sy = Math.floor(pr.world.y);
+      if (Math.abs(wx - sx) <= 2048 && Math.abs(wy - sy) <= 2048) {
+        pendingCmds.push({ type: 'debugTunnel', x0: sx, y0: sy, x1: wx, y1: wy, r: 10 });
+      }
+    } else if (pr.button === 0 && !pr.panning) {
+      if (pr.shift) pendingCmds.push({ type: 'debugGirder', x: wx - 48, y: wy - 6, w: 96, h: 12 });
+      else pendingCmds.push({ type: 'debugCarve', x: wx, y: wy, r: carveR });
+    }
   };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerup', (e) => endPress(e, false));
+  canvas.addEventListener('pointercancel', (e) => endPress(e, true));
   canvas.addEventListener('pointerleave', () => (cursorWorld = null));
   canvas.addEventListener(
     'wheel',
@@ -320,6 +393,20 @@ async function main(): Promise<void> {
 
     if (terrainView) uploadsLast = terrainView.update();
     waterView?.update(performance.now());
+    preview.clear();
+    if (isMap() && cursorWorld) {
+      const lw = 1.5 / camera.zoom;
+      if (press && press.button === 2) {
+        preview
+          .moveTo(press.world.x, press.world.y)
+          .lineTo(cursorWorld.x, cursorWorld.y)
+          .stroke({ width: 20, color: 0x1a1320, alpha: 0.25, cap: 'round' });
+      } else if (held.has('ShiftLeft') || held.has('ShiftRight')) {
+        preview.rect(Math.floor(cursorWorld.x) - 48, Math.floor(cursorWorld.y) - 6, 96, 12).stroke({ width: lw, color: 0x1a1320, alpha: 0.8 });
+      } else {
+        preview.circle(cursorWorld.x, cursorWorld.y, carveR).stroke({ width: lw, color: 0x1a1320, alpha: 0.7 });
+      }
+    }
 
     if (bouncerLayer) {
       const alive = new Set<number>();
@@ -369,6 +456,9 @@ async function main(): Promise<void> {
         `paint <b>${terrainView.paintMs.toFixed(0)} ms</b> · decode <b>${loadedMap.decodeMs.toFixed(0)} ms</b>`,
         `uploads <b>${uploadsLast}</b> · queued <b>${terrainView.pendingUploads}</b>`,
         `water y <b>${state.waterY}</b>`,
+        `crater r <b>${carveR}</b> · craters <b>${craters}</b>`,
+        `terrain v <b>${t.version}</b> · cmds queued <b>${pendingCmds.length}</b>`,
+        `worst step <b>${worstStepMs.toFixed(2)} ms</b>`,
         cx !== null && cy !== null ? `cursor <b>${cx}, ${cy}</b> <b>${MAT_NAMES[getMat(t, cx, cy)]}</b>` : 'cursor <b>—</b>',
       );
     } else {

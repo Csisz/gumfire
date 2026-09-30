@@ -16,6 +16,8 @@ interface ChunkGfx {
 export class TerrainView {
   readonly container = new Container();
   private readonly colors: Uint8Array;
+  /** The bitmap as loaded; lets the painter show craters, scorch and the original crust. */
+  private readonly original: Uint8Array;
   private readonly chunks: ChunkGfx[] = [];
   /** Chunk indices waiting for upload (overflow from earlier frames). */
   private readonly queue: number[] = [];
@@ -28,9 +30,10 @@ export class TerrainView {
   ) {
     this.container.label = 'terrain';
     this.colors = new Uint8Array(terrain.width * terrain.height * 4);
+    this.original = terrain.mat.slice();
     this.queued = new Uint8Array(terrain.chunksX * terrain.chunksY);
     const t0 = performance.now();
-    paintTerrainRect(terrain, theme, this.colors, 0, 0, terrain.width - 1, terrain.height - 1);
+    paintTerrainRect(terrain, theme, this.colors, 0, 0, terrain.width - 1, terrain.height - 1, this.original);
     this.paintMs = performance.now() - t0;
 
     for (let i = 0; i < terrain.chunksX * terrain.chunksY; i++) {
@@ -68,7 +71,7 @@ export class TerrainView {
       this.queued[i] = 0;
       const r = chunkRect(this.terrain, i);
       // Repaint the chunk (the painter reads a margin around it, so crusts stay correct).
-      paintTerrainRect(this.terrain, this.theme, this.colors, r.x0, r.y0, r.x1, r.y1);
+      paintTerrainRect(this.terrain, this.theme, this.colors, r.x0, r.y0, r.x1, r.y1, this.original);
       this.copyChunk(i);
       this.chunks[i]!.source.update();
       done++;
@@ -76,10 +79,14 @@ export class TerrainView {
     return done;
   }
 
-  /** Repaint every chunk touching a pixel rect grown by the paint margin (used after edits, M2). */
+  /**
+   * Queue a repaint of every chunk within PAINT_MARGIN of an edited pixel rect. Call with each
+   * `TerrainChanged` event: an edit's outline and scorch reach into neighbouring chunks that the
+   * sim did not mark dirty.
+   */
   invalidateRect(x0: number, y0: number, x1: number, y1: number): void {
     const t = this.terrain;
-    const m = PAINT_MARGIN + 12;
+    const m = PAINT_MARGIN;
     const cx0 = Math.max(0, (x0 - m) >> 6);
     const cy0 = Math.max(0, (y0 - m) >> 6);
     const cx1 = Math.min(t.chunksX - 1, (x1 + m) >> 6);

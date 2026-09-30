@@ -4,3 +4,4 @@ dist/
 coverage/
 .vite/
 *.log
+tools/bench/.out/

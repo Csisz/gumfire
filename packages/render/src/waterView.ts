@@ -11,7 +11,7 @@ export interface WaterStyle {
 /** Hot cocoa (Birthday Aftermath liquid). */
 export const COCOA_WATER: WaterStyle = {
   body: 0x6b3b22,
-  bodyAlpha: 0.92,
+  bodyAlpha: 1,
   surface: 0x8a5230,
   foam: 0xf3dcc6,
   outline: 0x3b2418,
