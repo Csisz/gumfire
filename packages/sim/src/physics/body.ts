@@ -60,7 +60,7 @@ export function makeBody(id: number, x: number, y: number, vx: number, vy: numbe
 /** Search order for popping a buried body out: up first, then diagonally up, sideways, down. */
 const POP_DIRS = [0, -1, -1, -1, 1, -1, -1, 0, 1, 0, 0, 1] as const;
 
-function findFreeSpot(t: TerrainState, px: number, py: number, r: number): { dx: number; dy: number } | null {
+export function findFreeSpot(t: TerrainState, px: number, py: number, r: number): { dx: number; dy: number } | null {
   const maxD = 2 * r + 16;
   for (let d = 1; d <= maxD; d++) {
     for (let k = 0; k < POP_DIRS.length; k += 2) {
@@ -94,13 +94,28 @@ export function wakeBodiesInRect(bodies: Body[], x0: number, y0: number, x1: num
 export function stepBodies(bodies: Body[], t: TerrainState, waterY: number, tick: number, events: SimEvent[]): Body[] {
   const keep: Body[] = [];
   for (const b of bodies) {
-    const removed = stepBody(b, t, waterY, tick, events);
-    if (!removed) keep.push(b);
+    if (stepBody(b, t, waterY, tick, events).removed === null) keep.push(b);
   }
   return keep;
 }
 
-function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events: SimEvent[]): boolean {
+/** What happened to a body during one tick (characters use this to detect landings). */
+export interface BodyStepResult {
+  removed: null | 'drowned' | 'lost';
+  /** The body touched terrain this tick. */
+  touched: boolean;
+  /** Normal (y component ×256, negative = up) of the hardest contact this tick. */
+  contactNy: number;
+  /** Largest normal impact speed this tick, subpixels/tick (0 if none). */
+  impactSpeed: number;
+  enteredWater: boolean;
+}
+
+const result = (): BodyStepResult => ({ removed: null, touched: false, contactNy: 0, impactSpeed: 0, enteredWater: false });
+
+/** Advance one body one tick. Exported for bodies owned by other entities (characters). */
+export function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events: SimEvent[]): BodyStepResult {
+  const res = result();
   // ---- in water: sink, then drown
   if (b.drownTicks > 0) {
     b.drownTicks++;
@@ -109,11 +124,11 @@ function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events
     b.vy = PHYS.sinkSpeed;
     if (b.drownTicks > PHYS.drownTicks) {
       events.push({ type: 'BodyRemoved', tick, id: b.id, reason: 'drowned' });
-      return true;
+      res.removed = 'drowned';
     }
-    return false;
+    return res;
   }
-  if (b.sleeping) return false;
+  if (b.sleeping) return res;
 
   const r = b.radius;
   let px = pxOf(b.x);
@@ -131,7 +146,7 @@ function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events
     }
     b.vx = 0;
     b.vy = 0;
-    if (!free) return false; // fully buried: wait for terrain to change
+    if (!free) return res; // fully buried: wait for terrain to change
   }
 
   // ---- forces
@@ -142,8 +157,6 @@ function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events
 
   // ---- substepped movement, ≤ 1 px per substep
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(b.vx), Math.abs(b.vy)) / SUB));
-  let touched = false;
-  let contactNy = 0;
   for (let s = 0; s < steps; s++) {
     // Exact distribution: the substeps of a free flight sum to exactly (vx, vy).
     const dx = Math.trunc((b.vx * (s + 1)) / steps) - Math.trunc((b.vx * s) / steps);
@@ -161,11 +174,12 @@ function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events
       continue;
     }
     // Collision: respond along the surface normal at the blocked position.
-    touched = true;
     const n = surfaceNormal(t, npx, npy, r);
-    contactNy = n.ny;
     const vn = Math.trunc((b.vx * n.nx + b.vy * n.ny) / SUB);
+    if (!res.touched || -vn > res.impactSpeed) res.contactNy = n.ny;
+    res.touched = true;
     if (vn < 0) {
+      if (-vn > res.impactSpeed) res.impactSpeed = -vn;
       if (-vn >= PHYS.impactSpeed) events.push({ type: 'BodyImpact', tick, id: b.id, speed: -vn, x: npx, y: npy });
       const tx = b.vx - Math.trunc((vn * n.nx) / SUB);
       const ty = b.vy - Math.trunc((vn * n.ny) / SUB);
@@ -199,20 +213,22 @@ function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events
     b.drownTicks = 1;
     b.sleeping = false;
     events.push({ type: 'BodyEnteredWater', tick, id: b.id, x: px, y: waterY });
-    return false;
+    res.enteredWater = true;
+    return res;
   }
   const m = PHYS.lostMarginPx;
   if (px < -m || px > t.width + m || py > t.height + m) {
     events.push({ type: 'BodyRemoved', tick, id: b.id, reason: 'lost' });
-    return true;
+    res.removed = 'lost';
+    return res;
   }
 
   // ---- rest detection (static friction on gentle slopes)
   const slow = Math.abs(b.vx) < PHYS.restSpeed && Math.abs(b.vy) < PHYS.restSpeed;
-  if (slow && (touched || isSupported(t, px, py, r))) {
+  if (slow && (res.touched || isSupported(t, px, py, r))) {
     b.stillTicks++;
     if (b.stillTicks >= PHYS.restTicks) {
-      const ny = touched ? contactNy : surfaceNormal(t, px, py, r).ny;
+      const ny = res.touched ? res.contactNy : surfaceNormal(t, px, py, r).ny;
       if (-ny >= PHYS.restMaxSlopeCos) {
         b.sleeping = true;
         b.vx = 0;
@@ -224,5 +240,5 @@ function stepBody(b: Body, t: TerrainState, waterY: number, tick: number, events
   } else {
     b.stillTicks = 0;
   }
-  return false;
+  return res;
 }

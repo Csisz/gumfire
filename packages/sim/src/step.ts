@@ -2,6 +2,7 @@ import { sanitizeCommand, type SimCommand } from './core/commands.js';
 import type { SimEvent } from './core/events.js';
 import { sanitizeInput, type InputFrame } from './core/input.js';
 import { MAX_BODIES, makeBody, stepBodies, wakeBodiesInRect } from './physics/body.js';
+import { MAX_CHARACTERS, makeCharacter, stepCharacter } from './character/character.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
 import { Mat } from './terrain/terrain.js';
@@ -27,8 +28,15 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
     if (cmd) applyCommand(state, cmd, events);
   }
 
-  // 2. turn pre-update · 3. character controller · 4. rope · 5. projectiles · 6. triggers
-  // 7. explosions (M6)
+  // 2. turn pre-update (M7)
+  // 3. character controller (+ airborne characters' physics). Only the active character
+  //    receives input; the others idle, fall, land and drown on their own.
+  if (state.terrain) {
+    for (const c of state.characters) {
+      stepCharacter(c, state.terrain, state.waterY, state.tick, c.id === state.activeCharacter, input, state.lastInput, events);
+    }
+  }
+  // 4. rope · 5. projectiles · 6. triggers · 7. explosions (M6+)
 
   // 8. physics + 9. water
   if (state.terrain && state.bodies.length > 0) {
@@ -44,6 +52,21 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
 function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): void {
   const t = state.terrain;
   if (!t) return;
+  if (cmd.type === 'debugSpawnCharacter') {
+    if (state.characters.length >= MAX_CHARACTERS) return;
+    const id = state.nextCharacterId++;
+    state.characters.push(makeCharacter(id, cmd.team, cmd.x, cmd.y));
+    events.push({ type: 'CharacterSpawned', tick: state.tick, id, team: cmd.team });
+    return;
+  }
+  if (cmd.type === 'debugSelect') {
+    const ok = cmd.id === 0 || state.characters.some((c) => c.id === cmd.id && c.state !== 'dead');
+    if (ok && state.activeCharacter !== cmd.id) {
+      state.activeCharacter = cmd.id;
+      events.push({ type: 'ActiveCharacterChanged', tick: state.tick, id: cmd.id });
+    }
+    return;
+  }
   if (cmd.type === 'debugSpawn') {
     if (state.bodies.length >= MAX_BODIES) return;
     const id = state.nextBodyId++;
@@ -69,6 +92,7 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
   }
   if (r) {
     wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
+    // characters check their support every tick, so they need no explicit wake
     events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
   }
 }

@@ -15,3 +15,4 @@ export * from './replay.js';
 export * from './physics/constants.js';
 export * from './physics/collision.js';
 export * from './physics/body.js';
+export * from './character/character.js';

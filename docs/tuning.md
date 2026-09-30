@@ -8,3 +8,4 @@ Every intentional change to simulation behaviour that alters a golden hash gets 
 | 2026-09-30 | M1 | GameState schema 2: terrain (chunk hashes) and waterY added to the state hash; demo behaviour unchanged | golden `4df6b565` → `950a526e` |
 | 2026-09-30 | M2 | Chunk hash changed from FNV-1a over bytes to an incremental position-weighted sum (`pixelWeight`); terrain edits via commands | map-state hashes change; demo golden unchanged |
 | 2026-09-30 | M3 | GameState schema 3 (bodies); demo bouncers removed; golden scenario rebuilt on the physics arena (spawns, carves, girders, tunnels, 3000 ticks) | new golden `f7d109b4` |
+| 2026-09-30 | M4 | GameState schema 4 (characters); golden scenario adds a controlled character. Tuned: fall damage threshold 5.5→7.5 px/tick and ×8→×10 (backflip must not hurt), jump crouch 6→10 ticks (double-tap window) | new golden `bf8b18a8` |

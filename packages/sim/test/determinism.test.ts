@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  Btn,
   cloneState,
   createGame,
   deserializeState,
@@ -17,7 +18,10 @@ import { arenaMap } from './helpers.js';
  * girders appear, tunnels are dug. Everything is derived from the tick number only.
  */
 function scriptedCommands(ticks: number): TimedCommand[] {
-  const out: TimedCommand[] = [];
+  const out: TimedCommand[] = [
+    { tick: 1, cmd: { type: 'debugSpawnCharacter', x: 150, y: 440, team: 0 } },
+    { tick: 1, cmd: { type: 'debugSelect', id: 1 } },
+  ];
   for (let tick = 1; tick <= ticks; tick++) {
     if (tick % 40 === 1) out.push({ tick, cmd: { type: 'debugSpawn', x: 60 + ((tick * 37) % 1100), y: 100 + (tick % 150), vx: ((tick % 13) - 6) * 200, vy: -((tick % 7) * 150), r: 6 + (tick % 5) } });
     if (tick % 120 === 60) out.push({ tick, cmd: { type: 'debugCarve', x: 100 + ((tick * 53) % 1000), y: 505, r: 30 + (tick % 20) } });
@@ -27,8 +31,20 @@ function scriptedCommands(ticks: number): TimedCommand[] {
   return out;
 }
 
+/** The controlled character walks, jumps both ways and aims (symmetric, so it stays near x=150). */
+function scriptedInputs(ticks: number): number[] {
+  return Array.from({ length: ticks }, (_, t) => {
+    const k = t % 240;
+    if (k < 40) return Btn.Right;
+    if (k === 40 || k === 141) return Btn.Jump;
+    if (k >= 101 && k < 141) return Btn.Left;
+    if (k >= 201) return Btn.Up;
+    return 0;
+  });
+}
+
 const TICKS = 3000;
-const REPLAY: Replay = { config: { seed: 20260930, map: arenaMap() }, inputs: new Array(TICKS).fill(0), commands: scriptedCommands(TICKS) };
+const REPLAY: Replay = { config: { seed: 20260930, map: arenaMap() }, inputs: scriptedInputs(TICKS), commands: scriptedCommands(TICKS) };
 
 function runLive(until: number) {
   const s = createGame(REPLAY.config);
@@ -38,7 +54,7 @@ function runLive(until: number) {
     while (s.tick < to) {
       const batch = [];
       while (c < cmds.length && cmds[c]!.tick === s.tick + 1) batch.push(cmds[c++]!.cmd);
-      step(s, 0, batch);
+      step(s, REPLAY.inputs[s.tick]!, batch);
     }
   };
   advance(until);
@@ -52,6 +68,7 @@ describe('determinism (physics arena)', () => {
     expect(a.checkpoints.length).toBe(60);
     expect(a.checkpoints).toEqual(b.checkpoints);
     expect(a.state.bodies.length + a.state.nextBodyId).toBeGreaterThan(10); // the scenario really exercised bodies
+    expect(a.state.characters[0]!.state).not.toBe('dead'); // …and a live, controlled character
   });
 
   it('one changed command changes the outcome', () => {
@@ -69,7 +86,7 @@ describe('determinism (physics arena)', () => {
       while (st.tick < TICKS) {
         const batch = [];
         while (c < cmds.length && cmds[c]!.tick === st.tick + 1) batch.push(cmds[c++]!.cmd);
-        step(st, 0, batch);
+        step(st, REPLAY.inputs[st.tick]!, batch);
       }
     };
     cont(s);
@@ -88,7 +105,7 @@ describe('determinism (physics arena)', () => {
     while (restored.tick < TICKS) {
       const batch = [];
       while (c >= 0 && c < cmds.length && cmds[c]!.tick === restored.tick + 1) batch.push(cmds[c++]!.cmd);
-      step(restored, 0, batch);
+      step(restored, REPLAY.inputs[restored.tick]!, batch);
     }
     expect(hashState(restored)).toBe(hashState(s));
   });
@@ -106,6 +123,6 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"f7d109b4"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"bf8b18a8"`);
   });
 });

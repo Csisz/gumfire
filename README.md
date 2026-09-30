@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M3 — physics & collision** complete (M0 sandbox, M1 terrain rendering, M2 destruction before it). See [`docs/progress`](docs/progress).
+> Status: **M4 — character movement** complete (M0 sandbox, M1 terrain, M2 destruction, M3 physics before it). See [`docs/progress`](docs/progress).
 
 ## Quick start
 
@@ -16,10 +16,11 @@ pnpm check        # lint + typecheck + tests + build (what CI runs)
 pnpm bench        # crater and physics cost on bundled code
 ```
 
-Sandbox (pick a map): **E** Gumling tool — click drops one, drag = slingshot throw; **Q** crater
-tool — click carves, `[`/`]` size; Shift+click girder; right-drag tunnel; **N** 50 Gumlings;
-**B** 200 craters; middle-drag/WASD pan, wheel zoom, F fit; P pause, `.` single tick,
-**V verify determinism**, R restart.
+Sandbox (pick a map). **Play:** C then click places a Gumling; ←/→ walk, ↑/↓ aim, Enter jump,
+Enter×2 backflip, Tab next Gumling, L toggle follow camera. **Tools:** E candy ball (click
+drop, drag slingshot), Q crater (`[`/`]` size), Shift+click girder, right-drag tunnel, N 50
+balls, B 200 craters. **View:** middle-drag/WASD pan, wheel zoom, F fit. **Sim:** P pause,
+`.` single tick, **V verify determinism**, R restart.
 
 ## Repository map
 
@@ -31,6 +32,7 @@ packages/sim/     PURE deterministic simulation — no DOM, no Pixi, no Math.ran
   src/terrain/    material bitmap, 64×64 chunks, incremental hashing, carve/tunnel/add edits
   src/core/commands.ts  tick-stamped structured input (debug edits now, targets later)
   src/physics/    bodies: collision vs bitmap, substeps, bounce/friction, sleep, water
+  src/character/  character controller: pixel walking, jumps, backflip, fall damage, aim
   src/state/      GameState, create/hash/clone/serialise
   src/step.ts     one 20 ms tick, canonical system order
   src/replay.ts   seed + input frames → state + checkpoint hashes

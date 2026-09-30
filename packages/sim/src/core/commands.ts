@@ -9,7 +9,11 @@ export type SimCommand =
   | { type: 'debugTunnel'; x0: number; y0: number; x1: number; y1: number; r: number }
   | { type: 'debugGirder'; x: number; y: number; w: number; h: number }
   /** Spawn a test body at pixel (x, y) with velocity (vx, vy) in subpixels/tick. */
-  | { type: 'debugSpawn'; x: number; y: number; vx: number; vy: number; r: number };
+  | { type: 'debugSpawn'; x: number; y: number; vx: number; vy: number; r: number }
+  /** Place a character (team 0..5) at pixel (x, y); it falls and lands. */
+  | { type: 'debugSpawnCharacter'; x: number; y: number; team: number }
+  /** Give input control to character `id` (0 = nobody). The turn system replaces this at M7. */
+  | { type: 'debugSelect'; id: number };
 
 /** A command applied at the start of simulation tick `tick` (1-based, the tick being computed). */
 export interface TimedCommand {
@@ -42,6 +46,12 @@ export function sanitizeCommand(c: unknown): SimCommand | null {
       if (!coords('x', 'y') || !v('vx') || !v('vy') || !isInt(o.r) || !inRange(o.r, 3, 24)) return null;
       return { type: 'debugSpawn', x: o.x as number, y: o.y as number, vx: o.vx as number, vy: o.vy as number, r: o.r };
     }
+    case 'debugSpawnCharacter':
+      if (!coords('x', 'y') || !isInt(o.team) || !inRange(o.team, 0, 5)) return null;
+      return { type: 'debugSpawnCharacter', x: o.x as number, y: o.y as number, team: o.team };
+    case 'debugSelect':
+      if (!isInt(o.id) || !inRange(o.id, 0, 1 << 20)) return null;
+      return { type: 'debugSelect', id: o.id };
     default:
       return null;
   }
