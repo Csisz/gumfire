@@ -66,6 +66,32 @@ export const BIRTHDAY_THEME: TerrainTheme = {
   outlinePx: 2,
 };
 
+/**
+ * Frozen Snack Factory (art board 1): golden sponge cake with white icing drips tinted ice-blue,
+ * cookie-dark back wall, sugar sprinkles.
+ */
+export const FROZEN_SNACK_THEME: TerrainTheme = {
+  soil: hex(0xeec48a),
+  soilDark: hex(0xd9a766),
+  soilLight: hex(0xf7d9a8),
+  sprinkles: [hex(0xff5d8f), hex(0x3fa9f5), hex(0xffd23f), hex(0x6fdc4a), hex(0xffffff)],
+  frosting: hex(0xf7fcff),
+  frostingShade: hex(0xcfeaf8),
+  drip: hex(0xb9e2f7),
+  outline: hex(0x3a2418),
+  rock: hex(0x6b3f24),
+  rockStripe: hex(0x8a5530),
+  girder: hex(0xc9d3de),
+  border: hex(0x2e2433),
+  backWall: hex(0x9a6538),
+  backWallDark: hex(0x7d4f2b),
+  scorch: hex(0xa06e3e),
+  scorchDark: hex(0x5e3a22),
+  scorchPx: 5,
+  frostDepth: 10,
+  outlinePx: 2,
+};
+
 /** Minimal read-only view of the sim's TerrainState. Material ids match sim `Mat`. */
 export interface TerrainLike {
   readonly width: number;

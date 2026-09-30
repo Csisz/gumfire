@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GUMFIRE</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Patrick+Hand&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --page: #98e4fc;
+        --navy: #2f6fa8;
+        --ink: #1a1320;
+        --card: #ffffff;
+        --mint: #aff5d1;
+        --cherry: #feceda;
+        --cream: #fdf1c8;
+        --ice: #cdf2fa;
+        --display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
+        --hand: 'Patrick Hand', 'Comic Sans MS', cursive;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: var(--page); color: var(--ink); font-family: var(--display); }
+      #stage { position: fixed; inset: 0; }
+      #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      .hidden { display: none !important; }
+      .card { background: var(--card); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 rgba(26, 19, 32, 0.25); }
+      .pill { display: inline-block; background: var(--navy); color: #fff; font-weight: 700; letter-spacing: 0.04em; border-radius: 999px; padding: 4px 14px; border: 3px solid var(--ink); }
+      .hand { font-family: var(--hand); }
+      button.big { font: 700 22px var(--display); color: #fff; background: #ff5d8f; border: 3px solid var(--ink); border-radius: 16px; padding: 10px 28px; cursor: pointer; box-shadow: 0 5px 0 var(--ink); transition: transform 0.06s; }
+      button.big:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+      button.big.alt { background: var(--navy); }
+      select { font: 600 16px var(--display); border: 3px solid var(--ink); border-radius: 12px; padding: 4px 8px; background: #fff; }
+
+      /* ---------------- HUD */
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      #hud > * { pointer-events: auto; }
+      #turnCard { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 10px; }
+      #turnCard .who { display: flex; flex-direction: column; line-height: 1.05; }
+      #gumName { font-size: 20px; font-weight: 700; }
+      #phaseLine { font-size: 17px; color: #5b5470; }
+      #timer { min-width: 58px; height: 58px; border-radius: 50%; border: 3px solid var(--ink); display: grid; place-items: center; font-size: 28px; font-weight: 700; background: var(--cream); }
+      #timer.warn { background: #ff5d8f; color: #fff; animation: pulse 0.5s infinite alternate; }
+      #timer.retreat { background: var(--ice); }
+      @keyframes pulse { to { transform: scale(1.08); } }
+      #roundLine { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); font-size: 18px; color: var(--navy); text-shadow: 0 1px 0 #fff; }
+      #windCard { position: absolute; right: 14px; bottom: 14px; padding: 8px 12px 10px; text-align: center; }
+      #windCard .lbl { font-weight: 700; font-size: 14px; letter-spacing: 0.1em; }
+      .windbar { width: 190px; height: 18px; border: 3px solid var(--ink); border-radius: 10px; margin-top: 4px; display: flex; overflow: hidden; background: #eef8fd; position: relative; }
+      .windbar::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: 0.4; }
+      .windbar > div { flex: 1; display: flex; }
+      #windLeft { justify-content: flex-end; }
+      .windbar i { display: block; height: 100%; transition: width 0.4s; }
+      #windL { background: linear-gradient(270deg, #3fa9f5, #9b59d0); }
+      #windR { background: linear-gradient(90deg, #3fa9f5, #9b59d0); }
+      #teamsCard { position: absolute; left: 14px; bottom: 14px; padding: 8px 12px; min-width: 280px; }
+      .teamRow .name { white-space: nowrap; }
+      .teamRow { display: grid; grid-template-columns: 18px 92px 1fr 40px; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; margin: 3px 0; }
+      .teamRow .dot { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--ink); }
+      .teamRow .bar { height: 14px; border: 2.5px solid var(--ink); border-radius: 8px; background: #eee; overflow: hidden; }
+      .teamRow .bar i { display: block; height: 100%; transition: width 0.8s; }
+      .teamRow.active .name::before { content: '▶ '; }
+      #weaponBar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; padding: 8px; }
+      .wtile { width: 74px; height: 74px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; display: grid; place-items: center; position: relative; cursor: pointer; transition: transform 0.08s; }
+      .wtile svg { width: 48px; height: 48px; }
+      .wtile .key { position: absolute; top: -9px; left: -9px; background: var(--navy); color: #fff; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 12px; font-weight: 700; padding: 0 5px; }
+      .wtile.sel { background: var(--cream); transform: translateY(-6px); box-shadow: 0 6px 0 var(--ink); }
+      .wtile.off { opacity: 0.45; cursor: default; }
+      #weaponInfo { position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%); padding: 4px 14px; font-size: 18px; white-space: nowrap; }
+      #banner { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(0.6); opacity: 0; transition: all 0.25s; font-size: 44px; font-weight: 700; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); pointer-events: none; white-space: nowrap; }
+      #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      #corner { position: absolute; top: 12px; right: 14px; display: flex; gap: 8px; }
+      #corner button { font: 700 16px var(--display); width: 42px; height: 42px; border-radius: 12px; border: 3px solid var(--ink); background: #fff; cursor: pointer; }
+      #help { position: absolute; top: 64px; right: 14px; padding: 12px 16px; font-size: 16px; line-height: 1.5; max-width: 330px; }
+      #help b { font-weight: 700; }
+
+      /* ---------------- screens */
+      .screen { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(152, 228, 252, 0.72); backdrop-filter: blur(3px); }
+      .panel { padding: 22px 28px; text-align: center; max-width: 720px; width: calc(100% - 32px); }
+      .logo { font-size: 84px; font-weight: 700; color: #ff5d8f; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 0 7px 0 var(--ink); letter-spacing: 0.02em; margin: 0; line-height: 1; }
+      .tagline { font-size: 26px; color: var(--navy); margin: 8px 0 18px; }
+      .setup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0 18px; text-align: left; }
+      .teamCard { border-radius: 16px; border: 3px solid var(--ink); padding: 10px 14px; }
+      .teamCard h3 { margin: 0 0 4px; font-size: 22px; }
+      .teamCard .hand { font-size: 18px; }
+      .opts { display: flex; gap: 18px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 16px; font-weight: 600; }
+      .controls { font-size: 17px; color: #4a4360; margin-top: 16px; line-height: 1.5; }
+      .results h2 { font-size: 54px; margin: 6px 0; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+      table.stats { margin: 14px auto 20px; border-collapse: separate; border-spacing: 10px 4px; font-size: 18px; }
+      table.stats th { font-size: 14px; letter-spacing: 0.08em; color: #5b5470; }
+      .buttons { display: flex; gap: 14px; justify-content: center; }
+      #loading { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 18px; }
+      #error { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); color: #fff; background: #e8364f; border-radius: 10px; padding: 6px 12px; }
+      @media (max-width: 760px) { .logo { font-size: 56px; } .setup { grid-template-columns: 1fr; } #weaponBar { bottom: 110px; } #teamsCard { min-width: 0; } }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+
+    <div id="hud" class="hidden">
+      <div id="turnCard" class="card">
+        <span class="pill" id="teamPill">TEAM</span>
+        <div class="who"><span id="gumName">—</span><span id="phaseLine" class="hand">get ready</span></div>
+        <div id="timer">45</div>
+      </div>
+      <div id="roundLine" class="hand"></div>
+      <div id="corner"><button id="followBtn" title="Follow (F)">◎</button><button id="muteBtn" title="Sound (M)">♪</button><button id="helpBtn" title="Controls (H)">?</button></div>
+      <div id="help" class="card hidden">
+        <b>Move</b> ← → · <b>Aim</b> ↑ ↓ · <b>Jump</b> Enter (×2 backflip)<br />
+        <b>Fire</b> hold Space, release · <b>Weapons</b> F1 F2 F3 or click<br />
+        <b>Grenade</b> fuse 1–5 · bounce B · <b>End retreat</b> Backspace<br />
+        <b>Camera</b> drag · wheel zoom · F follow · <b>Sound</b> M
+      </div>
+      <div id="teamsCard" class="card"></div>
+      <div id="weaponInfo" class="card hand hidden"></div>
+      <div id="weaponBar" class="card"></div>
+      <div id="windCard" class="card">
+        <div class="lbl" id="windLbl">WIND</div>
+        <div class="windbar"><div id="windLeft"><i id="windL" style="width: 0"></i></div><div><i id="windR" style="width: 0"></i></div></div>
+      </div>
+      <div id="banner"></div>
+    </div>
+
+    <div id="title" class="screen">
+      <div class="panel card">
+        <h1 class="logo">GUMFIRE</h1>
+        <div class="tagline hand">Tiny gummies. Big snacks. Sticky battles!</div>
+        <div class="setup">
+          <div class="teamCard" style="background: var(--mint)"><h3>Mint Team</h3><div class="hand">Pip · Zippy · Mochi · Bolt</div></div>
+          <div class="teamCard" style="background: var(--cherry)"><h3>Cherry Team</h3><div class="hand">Rex · Nib · Tuck · Jojo</div></div>
+        </div>
+        <div class="opts">
+          <label>Gumlings <select id="optSize"><option>2</option><option>3</option><option selected>4</option></select></label>
+          <label>Turn <select id="optTurn"><option value="30">30 s</option><option value="45" selected>45 s</option><option value="60">60 s</option></select></label>
+          <label>Round <select id="optRound"><option value="300">5 min</option><option value="600" selected>10 min</option><option value="900">15 min</option></select></label>
+        </div>
+        <button id="startBtn" class="big">Play hot-seat!</button>
+        <div class="controls hand">Two players, one keyboard — pass it over when the turn changes.<br />← → walk · ↑ ↓ aim · hold Space to throw · Enter jump · F1–F3 weapons</div>
+      </div>
+    </div>
+
+    <div id="results" class="screen hidden">
+      <div class="panel card results">
+        <span class="pill" id="resPill">RESULT</span>
+        <h2 id="resTitle">Mint wins!</h2>
+        <div class="hand" id="resSub" style="font-size: 22px"></div>
+        <table class="stats" id="resTable"></table>
+        <div class="buttons"><button id="rematchBtn" class="big">Rematch</button><button id="menuBtn" class="big alt">Menu</button></div>
+      </div>
+    </div>
+
+    <div id="loading" class="hand hidden">Loading…</div>
+    <div id="error" class="hidden"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

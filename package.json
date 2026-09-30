@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @gumfire/sandbox dev",
+    "dev": "pnpm --filter @gumfire/client dev",
     "build": "pnpm -r build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
@@ -19,7 +19,8 @@
     "gen:maps": "node tools/gen-test-maps.mjs",
     "bench:carve": "node tools/bench/run.mjs tools/bench/carve.bench.ts",
     "bench:physics": "node tools/bench/run.mjs tools/bench/physics.bench.ts",
-    "bench": "pnpm bench:carve && pnpm bench:physics"
+    "bench": "pnpm bench:carve && pnpm bench:physics",
+    "dev:sandbox": "pnpm --filter @gumfire/sandbox dev"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

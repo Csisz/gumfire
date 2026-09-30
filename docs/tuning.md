@@ -12,3 +12,4 @@ Every intentional change to simulation behaviour that alters a golden hash gets 
 | 2026-09-30 | M5 | GameState schema 5 (weapons, projectiles, wind); golden scenario fires Pepper Rockets and rerolls wind | new golden `aa720d93` |
 | 2026-09-30 | M6 | GameState schema 6 (pendingDamage, pendingExplosions, quietTicks, autoReveal); explosions deal falloff damage and knockback, fall damage is pending too; golden scenario adds a second character and periodic `debugExplode` blasts | new golden `f28fe039` |
 | 2026-09-30 | M7 | GameState schema 7 (`match`); physics-arena golden only changes by the schema/hash layout; new match golden (seed 7, 2 × 3 on the arena, 8 s turns, 40 s round) | golden `f28fe039` → `bad3eef8`; match golden `5c6e3483` |
+| 2026-09-30 | M8 | GameState schema 8 (character fuse/bounce, projectile fuse/body); Fizz Grenade + Rolling Pin in the match golden; new full-match golden | arena `3ca9e7f6`, match `f4a15ca8`, full match `win:1:2948:db01340d` |

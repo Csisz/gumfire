@@ -162,4 +162,27 @@ describe('determinism (physics arena)', () => {
     expect(hashState(deserializeState(serializeState(res.state)))).toBe(res.finalHash);
     expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"f4a15ca8"`);
   });
+
+  it('golden: a whole match played to the end (sudden death water finishes it)', () => {
+    const config = {
+      seed: 2026,
+      map: arenaMap(),
+      weapons: [ROCKET_JSON, GRENADE_JSON, PIN_JSON],
+      match: { teams: [{ name: 'Mint', size: 2 }, { name: 'Cherry', size: 2 }], ruleset: { turnSeconds: 6, roundSeconds: 30 } },
+    };
+    const s = createGame(config);
+    const inputs: number[] = [];
+    const commands: TimedCommand[] = [];
+    for (let t = 0; t < 60000 && s.match!.phase !== 'matchOver'; t++) {
+      const k = t % 300;
+      if (k === 40) commands.push({ tick: s.tick + 1, cmd: { type: 'selectWeapon', index: Math.floor(t / 300) % 3 } });
+      const f = k < 20 ? Btn.Up : k >= 60 && k < 90 ? Btn.Fire : k >= 100 && k < 120 ? (t % 600 < 300 ? Btn.Left : Btn.Right) : 0;
+      inputs.push(f);
+      step(s, f, commands.length && commands.at(-1)!.tick === s.tick + 1 ? [commands.at(-1)!.cmd] : []);
+    }
+    expect(s.match!.phase).toBe('matchOver');
+    const res = runReplay({ config, inputs, commands });
+    expect(res.finalHash).toBe(hashState(s));
+    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:2948:db01340d"`);
+  });
 });

@@ -17,6 +17,15 @@ export const COCOA_WATER: WaterStyle = {
   outline: 0x3b2418,
 };
 
+/** Icy meltwater (Frozen Snack Factory). */
+export const ICE_WATER: WaterStyle = {
+  body: 0x3f9fd8,
+  bodyAlpha: 0.92,
+  surface: 0x7cc8ee,
+  foam: 0xf2fbff,
+  outline: 0x1f5f8c,
+};
+
 /**
  * The deadly liquid below `waterY` (plan §8.7, §9.6). Presentation only: the sim owns the
  * level; this view just draws a band from the level down, with an animated wavy surface.

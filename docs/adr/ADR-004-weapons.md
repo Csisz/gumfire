@@ -21,3 +21,9 @@ Status: accepted (M5, ballistic subset) · Plan: §12
   `docs/tuning.md`.
 - Behaviour blocks beyond the ballistic subset (bounce, fuse, cluster spawn, hitscan, melee,
   strikes, …) extend `WeaponJson`/`WeaponDef` and the projectile/trigger systems at M8–M12.
+
+## Update (M8)
+The schema gained `category: 'melee'` with a `melee` block, `input.mode: 'instant'`, a `fuse`
+trigger (optionally player-set 1–5 s) and a `bounce` block. Fused projectiles are simulated as
+physics bodies (same collision code as everything else). Still rejected explicitly: strikes,
+hitscan, cluster spawn, walkers, homing, fire — they arrive at M9.
