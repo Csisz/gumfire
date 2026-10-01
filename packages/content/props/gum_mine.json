@@ -1,0 +1,12 @@
+{
+  "id": "gum_mine",
+  "name": "Gumdrop Mine",
+  "kind": "mine",
+  "tags": ["explosive", "pushable"],
+  "radius": 5,
+  "restitution": 0.25,
+  "friction": 0.7,
+  "hp": 1,
+  "trigger": { "kind": "proximity", "radius": 32, "fuseMinSeconds": 0.5, "fuseMaxSeconds": 3, "dudChance": 0.1 },
+  "payload": { "explosion": { "radius": 42, "damage": 40, "knockback": 1.0, "carve": true } }
+}

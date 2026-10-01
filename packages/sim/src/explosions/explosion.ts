@@ -25,8 +25,8 @@ export interface Explosion {
   /** ×256 */
   knockback: number;
   carve: boolean;
-  cause: 'weapon' | 'death';
-  /** Projectile id (weapon) or character id (death). */
+  cause: 'weapon' | 'death' | 'object';
+  /** Projectile id (weapon), character id (death) or object id (object). */
   source: number;
 }
 

@@ -2,6 +2,7 @@ import type { SimEvent } from '../core/events.js';
 import { killCharacter } from '../character/character.js';
 import type { GameState } from '../state/gameState.js';
 import { DEATH_BLAST, type Explosion } from './explosion.js';
+import { objectInMotion } from '../environment/objects.js';
 
 /**
  * Settle detection and damage reveal (plan §3.2, §7.3; ADR-006).
@@ -19,6 +20,7 @@ export function worldInMotion(s: GameState): boolean {
     if (c.state === 'air' || c.state === 'drowning' || c.state === 'jumpPrep' || c.state === 'landing') return true;
   }
   for (const b of s.bodies) if (!b.sleeping || b.drownTicks > 0) return true;
+  for (const o of s.objects) if (objectInMotion(o)) return true;
   return false;
 }
 

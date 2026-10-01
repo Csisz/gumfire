@@ -1,0 +1,14 @@
+{
+  "id": "fizz_keg",
+  "name": "Fizz Keg",
+  "kind": "barrel",
+  "tags": ["explosive", "flammable", "pushable"],
+  "radius": 9,
+  "restitution": 0.15,
+  "friction": 0.75,
+  "hp": 1,
+  "payload": {
+    "explosion": { "radius": 56, "damage": 45, "knockback": 1.2, "carve": true },
+    "fire": { "count": 6, "speed": 3, "lifeSeconds": 3, "damage": 3 }
+  }
+}

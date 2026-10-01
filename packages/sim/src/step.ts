@@ -8,9 +8,11 @@ import { makeProjectile, stepProjectile } from './weapons/projectile.js';
 import { meleeSwing } from './weapons/melee.js';
 import { MAX_PROJECTILES, callStrike, fireHitscan, spawnPayload } from './weapons/actions.js';
 import { stepFires } from './environment/fire.js';
+import { blastObjects, stepObjects, wakeObjectsInRect, type ObjectWorld } from './environment/objects.js';
 import { blastBodies, blastCharacters, type Explosion } from './explosions/explosion.js';
 import { stepSettle } from './explosions/resolve.js';
-import { controlOf, liveRemote, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, stepTurn } from './turn/turn.js';
+import { ammoLeft, controlOf, liveRemote, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, spendAmmo, stepTurn } from './turn/turn.js';
+import { nextInt } from './core/rng.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
 import { Mat } from './terrain/terrain.js';
@@ -29,7 +31,7 @@ function stepProjectiles(state: GameState, events: SimEvent[]): void {
   const before = list.length;
   for (const p of list) {
     const def = state.weapons[p.weapon]!;
-    const out = stepProjectile(p, def, t, state.characters, state.wind, state.waterY, state.tick, events);
+    const out = stepProjectile(p, def, t, state.characters, state.wind, state.waterY, state.tick, events, state.objects);
     switch (out.kind) {
       case 'flying':
         keep.push(p);
@@ -79,13 +81,47 @@ function resolveExplosions(state: GameState, events: SimEvent[]): void {
     blastCharacters(e, state.characters, state.tick, events);
     blastBodies(e, state.bodies);
     for (const p of state.projectiles) if (p.body) blastBodies(e, [p.body]); // grenades get pushed too
+    if (state.objects.length) {
+      const w = objectWorld(state);
+      blastObjects(e, w, state.tick, events);
+      syncObjectWorld(state, w);
+    }
   }
+}
+
+/** The slice of the state the object system works on (objects may queue blasts and fires). */
+function objectWorld(s: GameState): ObjectWorld {
+  return { objects: s.objects, props: s.props, characters: s.characters, pendingExplosions: s.pendingExplosions, fires: s.fires, nextFireId: s.nextFireId, rng: s.rng };
+}
+function syncObjectWorld(s: GameState, w: ObjectWorld): void {
+  s.objects = w.objects;
+  s.nextFireId = w.nextFireId;
+}
+
+/** A crate was touched: heal the Gumling, or give its team ammo for a limited weapon. */
+function pickup(s: GameState, o: { id: number }, def: { heal: number; ammo: number }, c: GameState['characters'][0], events: SimEvent[]): void {
+  if (def.heal > 0) {
+    c.hp = Math.min(999, c.hp + def.heal);
+    events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind: 'health', amount: def.heal, weapon: -1 });
+    return;
+  }
+  const team = s.match?.teams[c.team];
+  const limited = s.weapons.map((w, i) => (!w.hidden && w.ammo >= 0 ? i : -1)).filter((i) => i >= 0);
+  if (!team || limited.length === 0) {
+    events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind: 'weapon', amount: 0, weapon: -1 });
+    return;
+  }
+  const w = limited[nextInt(s.rng.crates, limited.length)]!;
+  team.ammo[w] = (team.ammo[w] ?? 0) + def.ammo;
+  events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind: 'weapon', amount: def.ammo, weapon: w });
+  events.push({ type: 'AmmoChanged', tick: s.tick, team: team.id, weapon: w, ammo: team.ammo[w]! });
 }
 
 function terrainEdit(state: GameState, r: EditRect | null, cause: 'carve' | 'tunnel' | 'girder' | 'explosion' | 'fire', events: SimEvent[]): void {
   if (!r) return;
   wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
   for (const p of state.projectiles) if (p.body) wakeBodiesInRect([p.body], r.x0, r.y0, r.x1, r.y1);
+  if (state.objects.length) wakeObjectsInRect(state.objects, r.x0, r.y0, r.x1, r.y1);
   // characters check their support every tick, so they need no explicit wake
   events.push({ type: 'TerrainChanged', tick: state.tick, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, changed: r.changed, cause });
 }
@@ -122,10 +158,12 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
   //    receives input; the others idle, fall, land and drown on their own.
   if (state.terrain) {
     for (const c of state.characters) {
-      const weapon = state.weapons[c.weapon] ?? null;
       const controlled = control.id !== 0 && c.id === control.id;
+      // out of ammo: the weapon cannot fire (aiming still works)
+      const weapon = controlled && ammoLeft(state, c.id, c.weapon) === 0 ? null : (state.weapons[c.weapon] ?? null);
       const power = stepCharacter(c, state.terrain, state.waterY, state.tick, controlled, charInput, charPrev, events, weapon);
       if (power < 0 || !weapon) continue;
+      spendAmmo(state, c, events);
       if (weapon.category === 'melee') {
         meleeSwing(c, c.weapon, weapon, state.characters, state.tick, events);
         onShotFired(state, weapon, events);
@@ -158,6 +196,12 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
   // 8. physics + 9. water
   if (state.terrain && state.bodies.length > 0) {
     state.bodies = stepBodies(state.bodies, state.terrain, state.waterY, state.tick, events);
+  }
+  // 9b. map objects: mines, barrels, crates
+  if (state.terrain && state.objects.length > 0) {
+    const w = objectWorld(state);
+    stepObjects(w, state.terrain, state.waterY, state.tick, events, (o, def, c) => pickup(state, o, def, c, events));
+    syncObjectWorld(state, w);
   }
 
   // 10. settle detection (+ auto damage reveal in free play) · 11. turn post-update
@@ -205,7 +249,7 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
   }
   if (cmd.type === 'selectWeapon') {
     const c = state.characters.find((x) => x.id === state.activeCharacter);
-    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && !state.weapons[cmd.index]!.hidden && c.state !== 'charging' && c.weapon !== cmd.index) {
+    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && !state.weapons[cmd.index]!.hidden && ammoLeft(state, c.id, cmd.index) !== 0 && c.state !== 'charging' && c.weapon !== cmd.index) {
       c.weapon = cmd.index;
       c.hasTarget = false;
       events.push({ type: 'WeaponSelected', tick: state.tick, id: c.id, weapon: cmd.index });

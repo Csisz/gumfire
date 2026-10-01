@@ -5,6 +5,8 @@ import { SETTLE_TICKS, hasPendingDamage, revealDamage, worldInMotion } from '../
 import { emitPhase, isAlive, livingTeams, type MatchState } from '../match/match.js';
 import type { GameState } from '../state/gameState.js';
 import type { WeaponDef } from '../weapons/definition.js';
+import { chance, nextRange } from '../core/rng.js';
+import { MAX_OBJECTS, makeObject } from '../environment/objects.js';
 
 /**
  * Turn manager (plan §7.3). One match phase machine, advanced once per tick:
@@ -108,6 +110,14 @@ function controlLoss(s: GameState, events: readonly SimEvent[]): ControlEndReaso
   return null;
 }
 
+/** Telegraph (Phase 2 hook 26.4): announce sudden death before the round clock runs out. */
+function warnSuddenDeath(s: GameState, m: MatchState, events: SimEvent[]): void {
+  const w = m.ruleset.suddenDeathWarnTicks;
+  if (w > 0 && m.ruleset.roundTicks > w && m.roundTicksLeft === w && !m.suddenDeath) {
+    events.push({ type: 'SuddenDeathSoon', tick: s.tick, seconds: Math.round(w / 50) });
+  }
+}
+
 /** Choose the next team and character, reroll the wind, raise the water in sudden death. */
 function beginTurn(s: GameState, m: MatchState, events: SimEvent[]): void {
   const alive = new Set(livingTeams(m, s.characters));
@@ -157,7 +167,45 @@ function beginTurn(s: GameState, m: MatchState, events: SimEvent[]): void {
     }
     events.push({ type: 'WaterRose', tick: s.tick, y: s.waterY });
   }
+  maybeDropCrate(s, m, events);
   events.push({ type: 'TurnStarted', tick: s.tick, turn: m.turn, team, id: chosen });
+}
+
+/** Turn start: maybe a supply crate floats down somewhere over the map (seeded `crates` stream). */
+function maybeDropCrate(s: GameState, m: MatchState, events: SimEvent[]): void {
+  if (!s.terrain || m.ruleset.crateChance <= 0 || s.objects.length >= MAX_OBJECTS) return;
+  const health = s.props.findIndex((p) => p.kind === 'crate' && p.heal > 0);
+  const weapon = s.props.findIndex((p) => p.kind === 'crate' && p.ammo > 0);
+  if (health < 0 && weapon < 0) return;
+  if (!chance(s.rng.crates, m.ruleset.crateChance, 1000)) return;
+  const isHealth = weapon < 0 || (health >= 0 && chance(s.rng.crates, m.ruleset.healthCrateShare, 1000));
+  const idx = isHealth ? health : weapon;
+  const def = s.props[idx]!;
+  const x = nextRange(s.rng.crates, 40, s.terrain.width - 41);
+  const o = makeObject(s.nextObjectId++, idx, def, x, -40);
+  s.objects.push(o);
+  events.push({ type: 'CrateDropped', tick: s.tick, id: o.id, kind: isHealth ? 'health' : 'weapon', x });
+}
+
+/** Ammo the active team has left for weapon `index` (−1 = unlimited; free play: unlimited). */
+export function ammoLeft(s: GameState, characterId: number, index: number): number {
+  const m = s.match;
+  if (!m) return -1;
+  const c = s.characters.find((x) => x.id === characterId);
+  const team = c ? m.teams[c.team] : undefined;
+  return team?.ammo[index] ?? -1;
+}
+
+/** Use one round of ammo for the first shot of a turn (multi-shot weapons cost one). */
+export function spendAmmo(s: GameState, c: { id: number; team: number; weapon: number }, events: SimEvent[]): void {
+  const m = s.match;
+  if (!m || m.shotsFired > 0) return;
+  const team = m.teams[c.team];
+  const a = team?.ammo[c.weapon];
+  if (team && a !== undefined && a > 0) {
+    team.ammo[c.weapon] = a - 1;
+    events.push({ type: 'AmmoChanged', tick: s.tick, team: team.id, weapon: c.weapon, ammo: a - 1 });
+  }
 }
 
 function finish(s: GameState, m: MatchState, result: 'win' | 'draw', winner: number, events: SimEvent[]): void {
@@ -215,6 +263,7 @@ export function stepTurn(s: GameState, input: InputFrame, prevInput: InputFrame,
       return;
     case 'turnActive': {
       if (m.roundTicksLeft > 0) m.roundTicksLeft--;
+      warnSuddenDeath(s, m, events);
       m.turnTicksLeft = Math.max(0, m.turnTicksLeft - 1);
       const lost = controlLoss(s, events);
       if (lost) endControl(s, m, lost, events);
@@ -227,6 +276,7 @@ export function stepTurn(s: GameState, input: InputFrame, prevInput: InputFrame,
     }
     case 'retreat': {
       if (m.roundTicksLeft > 0) m.roundTicksLeft--;
+      warnSuddenDeath(s, m, events);
       m.retreatTicksLeft = Math.max(0, m.retreatTicksLeft - 1);
       const lost = controlLoss(s, events);
       if (lost) endControl(s, m, lost, events);

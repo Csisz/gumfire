@@ -43,7 +43,7 @@ export class Hud {
       const tile = document.createElement('div');
       tile.className = 'wtile';
       tile.title = w.name;
-      tile.innerHTML = ICONS[w.id] ?? `<b>${w.name[0]}</b>`;
+      tile.innerHTML = `${ICONS[w.id] ?? `<b>${w.name[0]}</b>`}<span class="ammo"></span>`;
       tile.addEventListener('click', () => this.onSelectWeapon(i));
       bar.appendChild(tile);
       this.weaponTiles.push(tile);
@@ -144,8 +144,13 @@ export class Hud {
     // weapons
     const canPick = m.phase === 'turnActive' && m.shotsFired === 0 && act?.state !== 'charging';
     const sel = act?.weapon ?? -1;
+    const ammoOf = (i: number) => (act && m.teams[act.team] ? (m.teams[act.team]!.ammo[i] ?? -1) : -1);
     this.weaponTiles.forEach((tile, k) => {
-      const cls = `wtile${this.weaponIndex[k] === sel ? ' sel' : ''}${canPick ? '' : ' off'}`;
+      const a = ammoOf(this.weaponIndex[k]!);
+      const badge = a < 0 ? '' : String(a);
+      const b = tile.querySelector('.ammo') as HTMLElement;
+      if (b.textContent !== badge) b.textContent = badge;
+      const cls = `wtile${this.weaponIndex[k] === sel ? ' sel' : ''}${canPick && a !== 0 ? '' : ' off'}`;
       if (tile.className !== cls) tile.className = cls;
     });
     const w = act ? s.weapons[act.weapon] : undefined;

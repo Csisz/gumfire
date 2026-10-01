@@ -20,6 +20,8 @@ export interface TeamState {
   characterIds: number[];
   /** Roster index of the character that plays this team's next turn. */
   next: number;
+  /** Ammo per weapon index (−1 = unlimited); filled from the weapon set at match creation. */
+  ammo: number[];
 }
 
 export interface MatchState {
@@ -62,6 +64,8 @@ export interface MatchConfig {
   /** 2..6 teams. */
   teams: TeamConfig[];
   ruleset?: RulesetJson;
+  /** Manual map objects (prop id + centre, whole px); replaces the ruleset's random mines/barrels. */
+  objects?: Array<{ prop: string; x: number; y: number }>;
 }
 
 export class MatchConfigError extends Error {}
@@ -122,7 +126,7 @@ export function setupMatch(
   const total = sizes.reduce((a, b) => a + b, 0);
   if (total > MAX_CHARACTERS) throw new MatchConfigError(`too many characters (${total} > ${MAX_CHARACTERS})`);
 
-  const teams: TeamState[] = cfg.teams.map((tc, i) => ({ id: i, name: String(tc.name).slice(0, 24), characterIds: [], next: 0 }));
+  const teams: TeamState[] = cfg.teams.map((tc, i) => ({ id: i, name: String(tc.name).slice(0, 24), characterIds: [], next: 0, ammo: [] }));
   const characters: Character[] = [];
   const taken: Array<{ x: number; y: number }> = [];
   let id = firstId;

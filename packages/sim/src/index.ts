@@ -27,3 +27,4 @@ export * from './turn/turn.js';
 export * from './weapons/melee.js';
 export * from './weapons/actions.js';
 export * from './environment/fire.js';
+export * from './environment/objects.js';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { compileWeapons } from '@gumfire/sim';
-import { WEAPONS } from '../src/index.js';
+import { compileProps, compileWeapons } from '@gumfire/sim';
+import { PROPS, WEAPONS } from '../src/index.js';
 
 describe('content', () => {
   it('every authored weapon compiles to valid integer sim units', () => {
@@ -30,5 +30,18 @@ describe('content', () => {
     expect(byId.magnet_bomb!.d).toMatchObject({ needsTarget: true, instant: false });
     expect(byId.sprinkle_drop!.d).toMatchObject({ needsTarget: true, instant: true });
     expect(byId.binder_clip!.d).toMatchObject({ category: 'hitscan', shotsPerTurn: 2 });
+  });
+
+  it('every prop compiles; one of each kind the match needs', () => {
+    const props = compileProps(PROPS);
+    expect(props.map((p) => [p.id, p.kind])).toEqual([
+      ['gum_mine', 'mine'],
+      ['fizz_keg', 'barrel'],
+      ['health_crate', 'crate'],
+      ['weapon_crate', 'crate'],
+    ]);
+    for (const p of props) for (const [k, v] of Object.entries(p)) if (typeof v === 'number') expect(Number.isInteger(v), `${p.id}.${k}`).toBe(true);
+    expect(props[2]!.heal).toBe(25);
+    expect(props[3]!.ammo).toBe(1);
   });
 });

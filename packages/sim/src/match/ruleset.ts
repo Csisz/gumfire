@@ -31,6 +31,15 @@ export interface RulesetJson {
   placementSpacingPx?: number;
   /** Random placement: minimum height of a spawn above the water line, px. */
   placementAboveWaterPx?: number;
+  /** Map objects placed at the start (needs the props content). */
+  mines?: number;
+  barrels?: number;
+  /** Chance of a supply crate dropping at each turn start, 0..1. */
+  crateChance?: number;
+  /** Share of crates that are health (the rest are weapons), 0..1. */
+  healthCrateShare?: number;
+  /** Warn this many seconds of round time before sudden death. */
+  suddenDeathWarnSeconds?: number;
 }
 
 export interface Ruleset {
@@ -48,6 +57,12 @@ export interface Ruleset {
   settleCapTicks: number;
   placementSpacing: number;
   placementAboveWater: number;
+  mines: number;
+  barrels: number;
+  /** per 1000 */
+  crateChance: number;
+  healthCrateShare: number;
+  suddenDeathWarnTicks: number;
 }
 
 /** Plan §3.2 defaults. */
@@ -65,6 +80,11 @@ export const DEFAULT_RULESET_JSON: Required<RulesetJson> = {
   settleCapSeconds: 20,
   placementSpacingPx: 40,
   placementAboveWaterPx: 60,
+  mines: 4,
+  barrels: 3,
+  crateChance: 0.35,
+  healthCrateShare: 0.6,
+  suddenDeathWarnSeconds: 30,
 };
 
 export class RulesetError extends Error {}
@@ -98,5 +118,10 @@ export function compileRuleset(json: RulesetJson = {}): Ruleset {
     settleCapTicks: secs('settleCapSeconds', j.settleCapSeconds, 1, 120),
     placementSpacing: Math.trunc(num('placementSpacingPx', j.placementSpacingPx, 0, 400)),
     placementAboveWater: Math.trunc(num('placementAboveWaterPx', j.placementAboveWaterPx, 0, 400)),
+    mines: Math.trunc(num('mines', j.mines, 0, 30)),
+    barrels: Math.trunc(num('barrels', j.barrels, 0, 30)),
+    crateChance: Math.round(num('crateChance', j.crateChance, 0, 1) * 1000),
+    healthCrateShare: Math.round(num('healthCrateShare', j.healthCrateShare, 0, 1) * 1000),
+    suddenDeathWarnTicks: secs('suddenDeathWarnSeconds', j.suddenDeathWarnSeconds, 0, 600),
   };
 }

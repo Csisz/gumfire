@@ -16,6 +16,6 @@
     "payload": { "explosion": { "radius": 52, "damage": 55, "knockback": 1.1, "carve": true } },
     "maxLifeTicks": 2000
   },
-  "ammo": { "default": "inf" },
+  "ammo": { "default": 1 },
   "turn": { "endsTurn": true, "shotsPerTurn": 1 }
 }

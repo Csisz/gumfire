@@ -1,7 +1,7 @@
 import { Application } from 'pixi.js';
 import { TICKS_PER_SECOND, subToPxFloat, type SimEvent } from '@gumfire/sim';
 import { Camera, CameraDirector, type CameraScene } from '@gumfire/render';
-import { WEAPONS } from '@gumfire/content';
+import { PROPS, WEAPONS } from '@gumfire/content';
 import { Audio } from './audio';
 import { Hud } from './hud';
 import { Keyboard } from './input';
@@ -72,6 +72,7 @@ async function startMatch(): Promise<void> {
     seed,
     map: map.spec,
     weapons: WEAPONS,
+    props: PROPS,
     match: {
       teams: TEAMS.map((t) => ({ name: t.name, size: o.size })),
       ruleset: { turnSeconds: o.turn, roundSeconds: o.round },
@@ -79,7 +80,7 @@ async function startMatch(): Promise<void> {
   });
   const view = new WorldView(session.state);
   app.stage.addChild(view.root);
-  const camera = new Camera(map.spec.width, map.spec.height, { minZoom: 0.3, maxZoom: 2.2, topMargin: 600 });
+  const camera = new Camera(map.spec.width, map.spec.height, { minZoom: 0.55, maxZoom: 2.2, topMargin: 600 });
   camera.setViewport(app.renderer.width / app.renderer.resolution, app.renderer.height / app.renderer.resolution);
   camera.fitWorld();
   camera.zoomAt(1.3 / camera.zoom, camera.viewW / 2, camera.viewH / 2); // close enough to read faces
@@ -107,7 +108,8 @@ function cycleWeapon(dir: number): void {
   if (!run) return;
   const s = run.session.state;
   const act = s.characters.find((c) => c.id === s.activeCharacter);
-  const list = s.weapons.map((w, i) => (w.hidden ? -1 : i)).filter((i) => i >= 0);
+  const team = act && s.match ? s.match.teams[act.team] : undefined;
+  const list = s.weapons.map((w, i) => (w.hidden || team?.ammo[i] === 0 ? -1 : i)).filter((i) => i >= 0);
   if (!act || list.length === 0) return;
   const at = Math.max(0, list.indexOf(act.weapon));
   selectWeapon(list[(at + dir + list.length) % list.length]!);
@@ -196,6 +198,23 @@ function onEvents(r: Running, events: SimEvent[]): void {
         break;
       case 'FiresSpawned':
         audio.play('sizzle');
+        break;
+      case 'CrateDropped':
+        r.hud.banner(e.kind === 'health' ? 'A candy box is coming!' : 'A surprise box is coming!', 1600);
+        audio.play('whistle');
+        break;
+      case 'CrateCollected':
+        audio.play(e.kind === 'health' ? 'reveal' : 'select');
+        break;
+      case 'MineArmed':
+        audio.play('fuse');
+        break;
+      case 'MineDud':
+        audio.play('sizzle');
+        break;
+      case 'SuddenDeathSoon':
+        r.hud.banner(`Sudden death in ${e.seconds} s!`, 2200);
+        audio.play('tick');
         break;
       case 'StrikeCalled':
         audio.play('whistle');
@@ -326,6 +345,12 @@ async function main(): Promise<void> {
     state: () => run?.session.state ?? null,
     start: () => startMatch(),
     worldToScreen: (x: number, y: number) => run?.camera.worldToScreen(x, y),
+    look: (x: number, y: number, zoom = 1.6) => {
+      if (!run) return;
+      run.director.takeManual();
+      run.camera.zoomAt(zoom / run.camera.zoom, run.camera.viewW / 2, run.camera.viewH / 2);
+      run.camera.centerOn(x, y);
+    },
   };
   showScreen('title');
 }

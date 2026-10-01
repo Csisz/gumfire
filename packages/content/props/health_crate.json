@@ -1,0 +1,13 @@
+{
+  "id": "health_crate",
+  "name": "Candy Box",
+  "kind": "crate",
+  "tags": ["pickup", "pushable"],
+  "radius": 8,
+  "restitution": 0.1,
+  "friction": 0.8,
+  "gravityScale": 0.15,
+  "hp": 30,
+  "payload": { "explosion": { "radius": 18, "damage": 8, "knockback": 0.6, "carve": true } },
+  "pickup": { "heal": 25 }
+}

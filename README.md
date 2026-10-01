@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M9 — full weapon framework** complete: 10 weapons from JSON (M0–M8 before it). Next: M10 environment. Phase 2 design (M21–M28): master plan §26.
+> Status: **M10 — environment** complete: mines, kegs, crates, ammo, sudden-death warning (M0–M9 before it). Next: M11 map generation and themes. Phase 2 design (M21–M28): master plan §26.
 
 ## Quick start
 
@@ -35,7 +35,7 @@ packages/sim/     PURE deterministic simulation — no DOM, no Pixi, no Math.ran
   src/physics/    bodies: collision vs bitmap, substeps, bounce/friction, sleep, water
   src/character/  character controller: pixel walking, jumps, backflip, fall damage, aim, charge
   src/weapons/    WeaponJson → WeaponDef compiler, projectiles (flight, wind, impacts)
-  src/environment/ wind
+  src/environment/ wind, fire, map objects (mines, kegs, crates)
   src/explosions/ blast falloff/knockback, explosion queue, settle-then-reveal damage (ADR-006)
   src/match/      ruleset (seconds → ticks), teams, placement, turn order, victory
   src/turn/       turn phase machine: prep, active, retreat, settling, reveal, sudden death
@@ -43,7 +43,7 @@ packages/sim/     PURE deterministic simulation — no DOM, no Pixi, no Math.ran
   src/step.ts     one 20 ms tick, canonical system order
   src/replay.ts   seed + input frames → state + checkpoint hashes
 packages/render/  Pixi views + pure painters: terrain paint, TerrainView, WaterView, Camera, CameraDirector
-packages/content/ authored game data: weapons/*.json (compiled by the sim at match start)
+packages/content/ authored game data: weapons/*.json, props/*.json (compiled by the sim at match start)
 tests/            cross-package tests (lint-rule enforcement)
 tools/            generators (trig tables, test maps), bundled benchmarks
 docs/             ADRs, milestone progress, tuning log

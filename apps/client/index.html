@@ -65,6 +65,8 @@
       #weaponBar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 8px; max-width: calc(100vw - 560px); flex-wrap: wrap; justify-content: center; }
       .wtile { width: 62px; height: 62px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; display: grid; place-items: center; position: relative; cursor: pointer; transition: transform 0.08s; }
       .wtile svg { width: 42px; height: 42px; }
+      .wtile .ammo { position: absolute; bottom: -8px; right: -8px; background: #fff; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 12px; font-weight: 700; padding: 0 5px; line-height: 1.3; }
+      .wtile .ammo:empty { display: none; }
       .wtile .key { position: absolute; top: -9px; left: -9px; background: var(--navy); color: #fff; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 12px; font-weight: 700; padding: 0 5px; }
       .wtile.sel { background: var(--cream); transform: translateY(-6px); box-shadow: 0 6px 0 var(--ink); }
       .wtile.off { opacity: 0.45; cursor: default; }

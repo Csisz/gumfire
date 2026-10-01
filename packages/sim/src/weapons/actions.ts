@@ -5,6 +5,7 @@ import { PHYS } from '../physics/constants.js';
 import { nextRange } from '../core/rng.js';
 import { touchesHitbox, type Character } from '../character/character.js';
 import { spawnFires } from '../environment/fire.js';
+import { touchesObject } from '../environment/objects.js';
 import { isSolid } from '../terrain/terrain.js';
 import type { GameState } from '../state/gameState.js';
 import type { WeaponDef } from './definition.js';
@@ -26,7 +27,7 @@ export function fireHitscan(s: GameState, c: Character, weaponIndex: number, def
   let x = c.body.x + Math.trunc((dir.vx * def.muzzleOffset * SUB) / SUB);
   let y = c.body.y + Math.trunc((dir.vy * def.muzzleOffset * SUB) / SUB);
   const x0 = x >> 8, y0 = y >> 8;
-  let hit: 'terrain' | 'character' | 'none' = 'none';
+  let hit: 'terrain' | 'character' | 'object' | 'none' = 'none';
   for (let i = 0; i < def.hitscanRange; i++) {
     const px = x >> 8, py = y >> 8;
     for (const o of s.characters) {
@@ -36,6 +37,7 @@ export function fireHitscan(s: GameState, c: Character, weaponIndex: number, def
         break;
       }
     }
+    if (hit === 'none' && s.objects.length && touchesObject(s.objects, x, y, 0)) hit = 'object';
     if (hit === 'none' && isSolid(t, px, py)) hit = 'terrain';
     if (hit !== 'none') break;
     if (px < -200 || px > t.width + 200 || py < -2000 || py > t.height + 200) break;

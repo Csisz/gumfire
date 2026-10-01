@@ -8,6 +8,7 @@ import { makeBody, stepBody, type Body } from '../physics/body.js';
 import type { SimEvent } from '../core/events.js';
 import type { TerrainState } from '../terrain/terrain.js';
 import { throwCharacter } from '../explosions/explosion.js';
+import { touchesObject, type WorldObject } from '../environment/objects.js';
 import { launchSpeed, type WeaponDef } from './definition.js';
 
 /**
@@ -54,7 +55,7 @@ export interface Projectile {
 
 export type ProjectileOutcome =
   | { kind: 'flying' }
-  | { kind: 'explode'; x: number; y: number; hit: 'terrain' | 'character' | 'timeout' | 'fuse' | 'remote'; characterId: number }
+  | { kind: 'explode'; x: number; y: number; hit: 'terrain' | 'character' | 'object' | 'timeout' | 'fuse' | 'remote'; characterId: number }
   | { kind: 'splash'; x: number }
   | { kind: 'lost' }
   /** Ended without a payload (a boomerang caught or dropped). */
@@ -253,6 +254,7 @@ export function stepProjectile(
   waterY: number,
   tick = 0,
   events: SimEvent[] = [],
+  objects: readonly WorldObject[] = [],
 ): ProjectileOutcome {
   p.age++;
   if (p.body) return stepBodyProjectile(p, p.body, def, t, wind, waterY, tick, events);
@@ -298,6 +300,7 @@ export function stepProjectile(
     } else {
       const who = def.impact ? hitCharacter(p, def, chars, nx, ny) : 0;
       if (who) return { kind: 'explode', x: pxOf(nx), y: pxOf(ny), hit: 'character', characterId: who };
+      if (def.impact && objects.length && touchesObject(objects, nx, ny, def.radius)) return { kind: 'explode', x: pxOf(nx), y: pxOf(ny), hit: 'object', characterId: 0 };
     }
     if (overlapsDisc(t, pxOf(nx), pxOf(ny), def.radius)) {
       if (boomerang) {

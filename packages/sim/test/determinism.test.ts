@@ -8,10 +8,15 @@ import {
   runReplay,
   serializeState,
   step,
+  type PropJson,
   type Replay,
   type TimedCommand,
 } from '../src/index.js';
 import { GRENADE_JSON, PIN_JSON, ROCKET_JSON, arenaMap } from './helpers.js';
+import mine from '../../content/props/gum_mine.json';
+import keg from '../../content/props/fizz_keg.json';
+import health from '../../content/props/health_crate.json';
+import crate from '../../content/props/weapon_crate.json';
 
 /**
  * Scripted session on the physics arena: bodies are thrown in, terrain is carved under them,
@@ -132,7 +137,7 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"a8f77a46"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"ec7cd38c"`);
   });
 
   it('golden hash: a scripted turn-based match (placement, turns, retreats, reveals, sudden death)', () => {
@@ -160,14 +165,15 @@ describe('determinism (physics arena)', () => {
     const res = runReplay(replay);
     expect(res.state.match!.turn).toBeGreaterThan(8);
     expect(hashState(deserializeState(serializeState(res.state)))).toBe(res.finalHash);
-    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"bdefafc8"`);
+    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"979f6860"`);
   });
 
-  it('golden: a whole match played to the end (sudden death water finishes it)', () => {
+  it('golden: a whole match played to the end (sudden death water finishes it), with mines, kegs and crates', () => {
     const config = {
       seed: 2026,
       map: arenaMap(),
       weapons: [ROCKET_JSON, GRENADE_JSON, PIN_JSON],
+      props: [mine, keg, health, crate] as PropJson[],
       match: { teams: [{ name: 'Mint', size: 2 }, { name: 'Cherry', size: 2 }], ruleset: { turnSeconds: 6, roundSeconds: 30 } },
     };
     const s = createGame(config);
@@ -183,6 +189,6 @@ describe('determinism (physics arena)', () => {
     expect(s.match!.phase).toBe('matchOver');
     const res = runReplay({ config, inputs, commands });
     expect(res.finalHash).toBe(hashState(s));
-    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:2948:9ef49411"`);
+    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:3761:b86bdb2f"`);
   });
 });

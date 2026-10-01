@@ -24,8 +24,8 @@ export type SimEvent =
   /** `speed` = launch speed in subpixels/tick; `power` = charge ticks. */
   | { type: 'ProjectileFired'; tick: number; id: number; weapon: number; owner: number; power: number; speed: number; x: number; y: number }
   /** A projectile's trigger fired here (the explosion itself follows as `Exploded`). */
-  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'timeout' | 'fuse' | 'remote'; characterId: number }
-  | { type: 'Exploded'; tick: number; x: number; y: number; radius: number; damage: number; cause: 'weapon' | 'death'; source: number }
+  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'object' | 'timeout' | 'fuse' | 'remote'; characterId: number }
+  | { type: 'Exploded'; tick: number; x: number; y: number; radius: number; damage: number; cause: 'weapon' | 'death' | 'object'; source: number }
   /** Pending damage was revealed (world settled). */
   | { type: 'DamageRevealed'; tick: number; total: number }
   | { type: 'ProjectileSplashed'; tick: number; id: number; x: number; y: number }
@@ -43,10 +43,23 @@ export type SimEvent =
   | { type: 'ProjectileCaught'; tick: number; id: number; by: number }
   | { type: 'ProjectileStruck'; tick: number; id: number; characterId: number }
   /** A hitscan ray from (x0, y0) to (x1, y1); `hit` = what stopped it. */
-  | { type: 'HitscanFired'; tick: number; id: number; weapon: number; x0: number; y0: number; x1: number; y1: number; hit: 'terrain' | 'character' | 'none' }
+  | { type: 'HitscanFired'; tick: number; id: number; weapon: number; x0: number; y0: number; x1: number; y1: number; hit: 'terrain' | 'character' | 'object' | 'none' }
   | { type: 'StrikeCalled'; tick: number; id: number; weapon: number; x: number; y: number; count: number }
   | { type: 'TargetSet'; tick: number; id: number; x: number; y: number }
   | { type: 'FiresSpawned'; tick: number; x: number; y: number; count: number }
+  // ---- environment (M10)
+  | { type: 'ObjectsPlaced'; tick: number; count: number }
+  | { type: 'ObjectDetonated'; tick: number; id: number; prop: string; x: number; y: number }
+  | { type: 'ObjectRemoved'; tick: number; id: number; reason: 'drowned' | 'lost' }
+  | { type: 'MineArmed'; tick: number; id: number; fuse: number }
+  | { type: 'MineDud'; tick: number; id: number; x: number; y: number }
+  | { type: 'CrateDropped'; tick: number; id: number; kind: 'health' | 'weapon'; x: number }
+  | { type: 'CrateLanded'; tick: number; id: number; x: number; y: number }
+  /** `amount` = hp healed or ammo added; `weapon` = weapon index for weapon crates (−1 otherwise). */
+  | { type: 'CrateCollected'; tick: number; id: number; by: number; kind: 'health' | 'weapon'; amount: number; weapon: number }
+  | { type: 'AmmoChanged'; tick: number; team: number; weapon: number; ammo: number }
+  /** Telegraph: sudden death starts when the round clock runs out in `seconds`. */
+  | { type: 'SuddenDeathSoon'; tick: number; seconds: number }
   /** A melee swing along `dir` (angle units); `hits` = character ids struck. */
   | { type: 'MeleeSwing'; tick: number; id: number; weapon: number; x: number; y: number; dir: number; hits: number[] }
   // ---- turn system (M7)

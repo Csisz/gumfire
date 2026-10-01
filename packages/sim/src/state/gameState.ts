@@ -10,7 +10,8 @@ import type { Projectile } from '../weapons/projectile.js';
 import type { Explosion } from '../explosions/explosion.js';
 import type { Fire } from '../environment/fire.js';
 import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../terrain/terrain.js';
-import { setupMatch, type MatchConfig, type MatchState } from '../match/match.js';
+import { findSpawn, setupMatch, type MatchConfig, type MatchState } from '../match/match.js';
+import { compileProps, makeObject, type PropDef, type PropJson, type WorldObject } from '../environment/objects.js';
 
 /**
  * Authoritative simulation state. Everything that affects future ticks lives here,
@@ -18,7 +19,7 @@ import { setupMatch, type MatchConfig, type MatchState } from '../match/match.js
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 9;
+  schema: 10;
   seed: number;
   tick: number;
   rng: RngStreams;
@@ -60,6 +61,12 @@ export interface GameState {
   /** Burning flames (fire payloads), in id order. */
   fires: Fire[];
   nextFireId: number;
+  /** Compiled map-object definitions (mines, barrels, crates) and their one-time hash. */
+  props: PropDef[];
+  propsHash: number;
+  /** Map objects in id order. */
+  objects: WorldObject[];
+  nextObjectId: number;
 }
 
 export interface MapSpec {
@@ -79,6 +86,8 @@ export interface GameConfig {
   wind?: number;
   /** Set up a turn-based match: teams are placed and the turn system runs (needs a map). */
   match?: MatchConfig;
+  /** Authored map objects (usually `@gumfire/content`'s PROPS); a match places them. */
+  props?: readonly PropJson[];
 }
 
 export function hashWeapons(defs: readonly WeaponDef[]): number {
@@ -88,7 +97,7 @@ export function hashWeapons(defs: readonly WeaponDef[]): number {
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
   const s: GameState = {
-    schema: 9,
+    schema: 10,
     seed,
     tick: 0,
     rng: createStreams(seed),
@@ -110,6 +119,9 @@ export function createGame(config: GameConfig): GameState {
     match: null,
     fires: [],
     nextFireId: 1,
+    ...propState(config.props ?? []),
+    objects: [],
+    nextObjectId: 1,
   };
   if (config.match) {
     if (!s.terrain) throw new Error('a match needs a map');
@@ -118,8 +130,43 @@ export function createGame(config: GameConfig): GameState {
     s.characters = characters;
     s.nextCharacterId += characters.length;
     s.autoReveal = false; // the turn system reveals damage in its own phase (ADR-006)
+    for (const t of match.teams) t.ammo = s.weapons.map((w) => (w.hidden ? 0 : w.ammo));
+    placeObjects(s, config.match.objects);
   }
   return s;
+}
+
+function propState(list: readonly PropJson[]): { props: PropDef[]; propsHash: number } {
+  const props = compileProps(list);
+  return { props, propsHash: new Hasher().str(JSON.stringify(props)).digest() };
+}
+
+/** Match start: mines and barrels on dry, roomy ground, away from the characters. */
+function placeObjects(s: GameState, manual?: MatchConfig['objects']): void {
+  const m = s.match!, t = s.terrain!;
+  if (manual) {
+    for (const o of manual) {
+      const idx = s.props.findIndex((p) => p.id === o.prop);
+      if (idx < 0) throw new Error(`unknown prop ${o.prop}`);
+      s.objects.push(makeObject(s.nextObjectId++, idx, s.props[idx]!, Math.trunc(o.x), Math.trunc(o.y)));
+    }
+    return;
+  }
+  const taken = s.characters.map((c) => ({ x: c.body.x >> 8, y: c.body.y >> 8 }));
+  const place = (kind: 'mine' | 'barrel', count: number) => {
+    const idx = s.props.findIndex((p) => p.kind === kind);
+    if (idx < 0) return;
+    for (let i = 0; i < count; i++) {
+      const spot = findSpawn(t, s.rng.mapgen, s.waterY, taken, Math.max(48, m.ruleset.placementSpacing), m.ruleset.placementAboveWater);
+      if (!spot) return;
+      taken.push(spot);
+      const def = s.props[idx]!;
+      // characters stand with their centre 10 px above the ground; objects sit on it
+      s.objects.push(makeObject(s.nextObjectId++, idx, def, spot.x, spot.y + 9 - def.radius));
+    }
+  };
+  place('mine', m.ruleset.mines);
+  place('barrel', m.ruleset.barrels);
 }
 
 function weaponState(list: readonly WeaponJson[]): { weapons: WeaponDef[]; weaponsHash: number } {
@@ -159,6 +206,11 @@ export function hashState(s: GameState): number {
   h.int(s.quietTicks).bool(s.autoReveal);
   h.bool(s.match !== null);
   if (s.match) hashMatch(h, s.match);
+  h.u32(s.propsHash).int(s.nextObjectId).u32(s.objects.length);
+  for (const o of s.objects) {
+    h.int(o.id).int(o.prop).int(o.hp).int(o.fuse).bool(o.dud).bool(o.falling);
+    hashBody(h, o.body);
+  }
   h.int(s.nextFireId).u32(s.fires.length);
   for (const f of s.fires) h.int(f.id).int(f.x).int(f.y).int(f.vx).int(f.vy).int(f.life).bool(f.landed).int(f.damage);
   return h.digest();
@@ -169,6 +221,8 @@ function hashMatch(h: Hasher, m: MatchState): void {
   for (const t of m.teams) {
     h.int(t.id).str(t.name).int(t.next).u32(t.characterIds.length);
     for (const id of t.characterIds) h.int(id);
+    h.u32(t.ammo.length);
+    for (const a of t.ammo) h.int(a);
   }
   h.u32(m.order.length);
   for (const o of m.order) h.int(o);
@@ -192,6 +246,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 9) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 10) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

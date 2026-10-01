@@ -35,6 +35,8 @@ export class WorldView {
   private readonly beams: Array<{ g: Graphics; age: number }> = [];
   private readonly chars = new Map<number, GumlingView>();
   private readonly projs = new Map<number, Container>();
+  private readonly objs = new Map<number, Container>();
+  private readonly objLayer = new Container();
   private readonly particles: Particle[] = [];
   private readonly rings: Array<{ g: Graphics; x: number; y: number; r: number; age: number }> = [];
   private readonly popups: Array<{ t: Text; age: number; vy: number }> = [];
@@ -47,7 +49,7 @@ export class WorldView {
     this.background = new Background(t.width, t.height);
     this.terrain = new TerrainView(t, FROZEN_SNACK_THEME);
     this.water = new WaterView(t.width, t.height, state.waterY, ICE_WATER);
-    this.world.addChild(this.terrain.container, this.charLayer, this.reticle, this.projLayer, this.flames, this.water.container, this.fxLayer);
+    this.world.addChild(this.terrain.container, this.objLayer, this.charLayer, this.reticle, this.projLayer, this.flames, this.water.container, this.fxLayer);
     this.root.addChild(this.background.container, this.world);
   }
 
@@ -62,6 +64,7 @@ export class WorldView {
     const m = new Map<string, { x: number; y: number }>();
     for (const c of this.state.characters) m.set(`c${c.id}`, { x: c.body.x, y: c.body.y });
     for (const p of this.state.projectiles) m.set(`p${p.id}`, { x: p.x, y: p.y });
+    for (const o of this.state.objects) m.set(`o${o.id}`, { x: o.body.x, y: o.body.y });
     this.prev = m;
   }
 
@@ -121,6 +124,23 @@ export class WorldView {
       case 'ProjectileDropped': {
         const p = this.state.projectiles.find((x) => x.id === e.id);
         if (p) for (let k = 0; k < 6; k++) this.particle(subToPxFloat(p.x), subToPxFloat(p.y), 0xc9d3de, 1.6, (Math.random() - 0.5) * 3, -Math.random() * 2, 20, 0.1);
+        break;
+      }
+      case 'MineArmed': {
+        const o = this.state.objects.find((x) => x.id === e.id);
+        if (o) this.popup(subToPxFloat(o.body.x), subToPxFloat(o.body.y) - 16, '!', 0xe8364f, 16);
+        break;
+      }
+      case 'MineDud': {
+        for (let k = 0; k < 8; k++) this.particle(e.x, e.y - 3, 0xb9b3c2, 3 + Math.random() * 3, (Math.random() - 0.5) * 1.2, -0.6 - Math.random(), 50, 0);
+        this.popup(e.x, e.y - 18, 'dud', 0x6b6478, 13);
+        break;
+      }
+      case 'CrateCollected': {
+        const c = this.state.characters.find((x) => x.id === e.by);
+        if (!c) break;
+        const text = e.kind === 'health' ? `+${e.amount}` : e.weapon >= 0 ? `+${e.amount} ${this.state.weapons[e.weapon]?.name ?? ''}` : 'empty!';
+        this.popup(subToPxFloat(c.body.x), subToPxFloat(c.body.y) - 44, text, e.kind === 'health' ? 0x3fb85f : 0x2f6fa8, 15);
         break;
       }
       case 'WaterRose':
@@ -185,6 +205,7 @@ export class WorldView {
     this.water.setLevel(s.waterY);
     this.water.update(nowMs);
     this.drawCharacters(alpha, nowMs, show.pending);
+    this.drawObjects(alpha, nowMs);
     this.drawProjectiles(alpha);
     this.drawFiresAndTarget(nowMs);
     this.drawFx();
@@ -442,6 +463,71 @@ export class WorldView {
       if (!alive.has(id)) {
         v.destroy({ children: true });
         this.projs.delete(id);
+      }
+    }
+  }
+
+  /** Mines, kegs and crates (placeholder vector art). */
+  private makeObjectView(kind: string, id: string): Container {
+    const c = new Container();
+    const ink = { width: 1.8, color: OUTLINE };
+    if (kind === 'mine') {
+      const dome = new Graphics().moveTo(-6, 4).arc(0, 4, 6, Math.PI, 0).lineTo(6, 5).lineTo(-6, 5).closePath().fill(0x8b2b4a).stroke(ink);
+      const sugar = new Graphics().circle(-3, 1, 0.8).circle(1, -0.5, 0.8).circle(3, 2, 0.8).fill(0xffffff);
+      const light = new Graphics().circle(0, -2.5, 1.6).fill(0xff4d4d);
+      light.label = 'light';
+      c.addChild(dome, sugar, light);
+    } else if (kind === 'barrel') {
+      c.addChild(
+        new Graphics().roundRect(-8, -9, 16, 18, 4).fill(0x3fa9f5).stroke({ width: 2, color: OUTLINE }),
+        new Graphics().rect(-8, -2.5, 16, 5).fill(0xffffff),
+        new Graphics().rect(-8, -0.8, 16, 1.6).fill(0xe8364f),
+        new Graphics().rect(-5.5, -7, 2, 14).fill({ color: 0xffffff, alpha: 0.35 }),
+      );
+    } else {
+      const chute = new Container();
+      chute.label = 'chute';
+      chute.addChild(
+        new Graphics().moveTo(-14, -26).arc(0, -26, 14, Math.PI, 0).lineTo(-14, -26).fill(0xffffff).stroke({ width: 1.5, color: OUTLINE }),
+        new Graphics().moveTo(-13, -26).lineTo(-6, -8).moveTo(13, -26).lineTo(6, -8).moveTo(0, -26).lineTo(0, -8).stroke({ width: 1, color: OUTLINE }),
+        new Graphics().moveTo(-14, -26).arc(-7, -26, 7, Math.PI, 0).fill({ color: 0xff5d8f, alpha: 0.85 }),
+      );
+      const health = id.includes('health');
+      const box = new Graphics().roundRect(-8, -8, 16, 16, 3).fill(health ? 0xaff5d1 : 0xd9a35c).stroke({ width: 2, color: OUTLINE });
+      const mark = health
+        ? new Graphics().moveTo(0, 4.5).bezierCurveTo(-7, -1, -3.5, -6.5, 0, -2.5).bezierCurveTo(3.5, -6.5, 7, -1, 0, 4.5).fill(0xff5d8f).stroke({ width: 1.2, color: OUTLINE })
+        : new Graphics().star(0, 0, 5, 5.5, 2.6).fill(0xffd23f).stroke({ width: 1.2, color: OUTLINE });
+      c.addChild(chute, box, mark);
+    }
+    return c;
+  }
+
+  private drawObjects(alpha: number, now: number): void {
+    const alive = new Set<number>();
+    for (const o of this.state.objects) {
+      alive.add(o.id);
+      const def = this.state.props[o.prop];
+      let v = this.objs.get(o.id);
+      if (!v) {
+        v = this.makeObjectView(def?.kind ?? 'crate', def?.id ?? '');
+        this.objs.set(o.id, v);
+        this.objLayer.addChild(v);
+      }
+      const { x, y } = this.lerp(`o${o.id}`, o.body.x, o.body.y, alpha);
+      v.position.set(x, y);
+      const chute = v.getChildByLabel('chute');
+      if (chute) chute.visible = o.falling;
+      const light = v.getChildByLabel('light');
+      if (light) {
+        light.visible = o.fuse === -1 ? Math.floor(now / 700) % 2 === 0 : o.fuse >= 0 ? Math.floor(now / 90) % 2 === 0 : false;
+        v.alpha = o.dud ? 0.6 : 1;
+      }
+      if (!chute && def?.kind === 'barrel') v.rotation = 0;
+    }
+    for (const [id, v] of this.objs) {
+      if (!alive.has(id)) {
+        v.destroy({ children: true });
+        this.objs.delete(id);
       }
     }
   }

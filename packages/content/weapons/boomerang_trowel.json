@@ -15,6 +15,6 @@
     "payload": {},
     "maxLifeTicks": 400
   },
-  "ammo": { "default": "inf" },
+  "ammo": { "default": 3 },
   "turn": { "endsTurn": true, "shotsPerTurn": 1 }
 }

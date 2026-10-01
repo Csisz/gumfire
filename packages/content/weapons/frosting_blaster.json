@@ -16,6 +16,6 @@
     },
     "maxLifeTicks": 1500
   },
-  "ammo": { "default": "inf" },
+  "ammo": { "default": 2 },
   "turn": { "endsTurn": true, "shotsPerTurn": 1 }
 }
