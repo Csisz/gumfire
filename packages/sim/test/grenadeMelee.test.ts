@@ -65,7 +65,7 @@ describe('weapon definitions (M8 blocks)', () => {
     expect(() => compileWeapon(noBounce)).toThrow(/bounce/);
     expect(() => compileWeapon({ ...ROCKET_JSON, category: 'strike' as never })).toThrow(WeaponDefinitionError);
     const pin = compileWeapon(PIN_JSON);
-    expect(pin).toMatchObject({ category: 'melee', instant: true, meleeReach: 18, meleeDamage: 30, meleeImpulse: 15 * SUB });
+    expect(pin).toMatchObject({ category: 'melee', instant: true, meleeReach: 18, meleeDamage: 30, meleeImpulse: 12.5 * SUB });
     expect(pin.meleeArcCos).toBeGreaterThan(150); // cos 50° ≈ 0.64
     expect(pin.meleeArcCos).toBeLessThan(180);
   });
@@ -160,7 +160,7 @@ describe('Rolling Pin', () => {
     expect(ofType(ev, 'MeleeSwing')).toEqual([expect.objectContaining({ id: 1, hits: [2] })]);
     expect(ofType(ev, 'CharacterHit')).toEqual([expect.objectContaining({ id: 2, damage: 30 })]);
     expect(target.state).toBe('air');
-    expect(target.body.vx).toBeGreaterThan(14 * SUB);
+    expect(target.body.vx).toBeGreaterThan(12 * SUB);
     expect(target.body.vy).toBeLessThan(0);
     expect(target.fallImmune).toBe(true);
     let maxX = 0;

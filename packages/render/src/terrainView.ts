@@ -38,7 +38,7 @@ export class TerrainView {
 
     for (let i = 0; i < terrain.chunksX * terrain.chunksY; i++) {
       const buffer = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * 4);
-      const source = new BufferImageSource({ resource: buffer, width: CHUNK_SIZE, height: CHUNK_SIZE, scaleMode: 'nearest' });
+      const source = new BufferImageSource({ resource: buffer, width: CHUNK_SIZE, height: CHUNK_SIZE, scaleMode: 'nearest', alphaMode: 'premultiply-alpha-on-upload' }); // painter writes straight alpha
       const sprite = new Sprite(new Texture({ source }));
       const r = chunkRect(terrain, i);
       sprite.position.set(r.x0, r.y0);

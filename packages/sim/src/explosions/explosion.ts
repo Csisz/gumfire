@@ -1,7 +1,7 @@
 import type { SimEvent } from '../core/events.js';
 import { SUB } from '../core/units.js';
 import { ilength } from '../core/trig.js';
-import type { Character } from '../character/character.js';
+import { hitboxNearest, type Character } from '../character/character.js';
 import type { Body } from '../physics/body.js';
 
 /**
@@ -72,7 +72,9 @@ export function blastEffect(e: Explosion, bx: number, by: number, r: number): Bl
 export function blastCharacters(e: Explosion, chars: Character[], tick: number, events: SimEvent[]): void {
   for (const c of chars) {
     if (c.state === 'dead' || c.state === 'drowning') continue;
-    const fx = blastEffect(e, c.body.x, c.body.y, c.body.radius);
+    // measured to the nearest point of the hit capsule, so a blast at head height counts
+    const n = hitboxNearest(c, e.x * SUB + SUB / 2, e.y * SUB + SUB / 2);
+    const fx = blastEffect(e, n.x, n.y, c.body.radius);
     if (fx.phi === 0) continue;
     if (fx.damage > 0) {
       c.pendingDamage += fx.damage;

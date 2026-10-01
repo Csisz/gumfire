@@ -31,6 +31,8 @@ export interface TerrainTheme {
   /** Carved-out area behind the terrain. */
   backWall: RGB;
   backWallDark: RGB;
+  /** Opacity of the back wall, 0..255 (low = carved holes show the sky behind, faintly tinted). */
+  backWallAlpha: number;
   /** Burnt soil around craters. */
   scorch: RGB;
   scorchDark: RGB;
@@ -59,6 +61,7 @@ export const BIRTHDAY_THEME: TerrainTheme = {
   border: hex(0x2e2433),
   backWall: hex(0xa8703f),
   backWallDark: hex(0x8f5b31),
+  backWallAlpha: 255,
   scorch: hex(0x9a6a3c),
   scorchDark: hex(0x5e3a22),
   scorchPx: 5,
@@ -83,11 +86,12 @@ export const FROZEN_SNACK_THEME: TerrainTheme = {
   rockStripe: hex(0x8a5530),
   girder: hex(0xc9d3de),
   border: hex(0x2e2433),
-  backWall: hex(0x9a6538),
-  backWallDark: hex(0x7d4f2b),
-  scorch: hex(0xa06e3e),
-  scorchDark: hex(0x5e3a22),
-  scorchPx: 5,
+  backWall: hex(0xc99a6a),
+  backWallDark: hex(0xb8875a),
+  backWallAlpha: 38, // M9 playtest: holes should barely remember the cake that was there
+  scorch: hex(0xd7a872),
+  scorchDark: hex(0xb07e4c),
+  scorchPx: 4,
   frostDepth: 10,
   outlinePx: 2,
 };
@@ -246,7 +250,7 @@ export function paintTerrainRect(
       const p = (y * W + x) * 4;
       if (m === AIR) {
         if (original && original[y * W + x] !== AIR) {
-          put(p, noise2(x >> 1, (y >> 1) + 5) % 11 === 0 ? theme.backWallDark : theme.backWall);
+          put(p, noise2(x >> 1, (y >> 1) + 5) % 11 === 0 ? theme.backWallDark : theme.backWall, theme.backWallAlpha);
         } else {
           out[p] = out[p + 1] = out[p + 2] = out[p + 3] = 0;
         }

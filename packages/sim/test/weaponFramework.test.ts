@@ -21,14 +21,14 @@ import grenade from '../../content/weapons/fizz_grenade.json';
 import pin from '../../content/weapons/rolling_pin.json';
 import acorn from '../../content/weapons/acorn_mortar.json';
 import cookie from '../../content/weapons/cookie_roller.json';
-import battery from '../../content/weapons/battery_shock.json';
+import magnet from '../../content/weapons/magnet_bomb.json';
 import sprinkle from '../../content/weapons/sprinkle_drop.json';
 import frosting from '../../content/weapons/frosting_blaster.json';
 import clip from '../../content/weapons/binder_clip.json';
 import trowel from '../../content/weapons/boomerang_trowel.json';
 
-const ALL = [rocket, grenade, pin, acorn, cookie, battery, sprinkle, frosting, clip, trowel] as WeaponJson[];
-const W = { rocket: 0, grenade: 1, pin: 2, acorn: 3, cookie: 4, battery: 5, sprinkle: 6, frosting: 7, clip: 8, trowel: 9 } as const;
+const ALL = [rocket, grenade, pin, acorn, cookie, magnet, sprinkle, frosting, clip, trowel] as WeaponJson[];
+const W = { rocket: 0, grenade: 1, pin: 2, acorn: 3, cookie: 4, magnet: 5, sprinkle: 6, frosting: 7, clip: 8, trowel: 9 } as const;
 const FLOOR = 700;
 const standY = FLOOR - CHAR.radius - 1;
 
@@ -101,6 +101,16 @@ describe('delivery: hitscan (Binder-Clip Launcher)', () => {
     expect(ofType(ev, 'CharacterHit').map((h) => h.id)).toEqual([2]); // the one behind is untouched
   });
 
+  it('a shot at head height hits: weapons test the drawn bean, not just the 9 px physics disc', () => {
+    const s = range([300, 360], W.clip);
+    aim(s, 14); // passes ~15 px above the target's centre
+    const shot = ofType(run(s, [Btn.Fire, 0]), 'HitscanFired')[0]!;
+    expect(shot.hit).toBe('character');
+    const over = range([300, 360], W.clip);
+    aim(over, 22); // ~24 px above the centre: clean miss over the head
+    expect(ofType(run(over, [Btn.Fire, 0]), 'HitscanFired')[0]!.hit).not.toBe('character');
+  });
+
   it('a shot into the ground blasts a hole; in a match it takes two shots to end the turn', () => {
     const s = range([300], W.clip);
     aim(s, -30);
@@ -135,10 +145,10 @@ describe('delivery: strike (Sprinkle Drop)', () => {
   });
 });
 
-describe('modifier: homing (Battery Shock Bomb)', () => {
+describe('modifier: homing (Magnet Bomb)', () => {
   it('locks on to the target even against a strong wind', () => {
     const land = (target: boolean) => {
-      const s = range([600], W.battery, -100); // right of the 1 px wall
+      const s = range([600], W.magnet, -100); // right of the 1 px wall
       if (target) step(s, 0, [{ type: 'setTarget', x: 1400, y: 690 }]);
       aim(s, 45);
       const ev = run(s, [...repeat(Btn.Fire, 30), 0]);

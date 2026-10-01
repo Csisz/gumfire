@@ -205,7 +205,7 @@ describe('jumping', () => {
     }
     expect(ev).toContainEqual(expect.objectContaining({ type: 'CharacterJumped', kind: 'backflip' }));
     expect(y0 - apex).toBeGreaterThanOrEqual(120); // plan: reaches ledges ≈ 125 px up
-    expect(x0 - charPx(c)).toBeGreaterThan(140); // M8 playtest: a real leap back, not a hop
+    expect(x0 - charPx(c)).toBeGreaterThan(90); // playtests: a real leap back, not a hop, not a long jump
     expect(c.facing).toBe(1); // a backflip keeps facing
   });
 

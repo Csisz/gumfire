@@ -367,14 +367,23 @@ export class WorldView {
           new Graphics().circle(-2.5, -2, 1.3).circle(2.8, 1, 1.3).circle(-0.5, 3.2, 1.2).circle(2, -3.5, 1).fill(0x4a2a14),
         );
         break;
-      case 'battery_shock':
-        spin.addChild(
-          new Graphics().roundRect(-7, -3.5, 14, 7, 2).fill(0x3fa9f5).stroke(ink),
-          new Graphics().rect(-7, -3.5, 5, 7).fill(0x2a2a33),
-          new Graphics().rect(7, -1.5, 2, 3).fill(0xdfe5ee).stroke({ width: 1, color: OUTLINE }),
-          new Graphics().poly([1, -3, -1, 0.5, 1.5, 0.5, -0.5, 3.5, 4, -0.5, 1.5, -0.5, 3, -3]).fill(0xffd23f),
-        );
+      case 'magnet_bomb': {
+        // a red horseshoe magnet with silver tips
+        const g = new Graphics()
+          .moveTo(-6, -6)
+          .lineTo(-6, 1)
+          .arc(0, 1, 6, Math.PI, 0, true)
+          .lineTo(6, -6)
+          .lineTo(2.5, -6)
+          .lineTo(2.5, 1)
+          .arc(0, 1, 2.5, 0, Math.PI, false)
+          .lineTo(-2.5, -6)
+          .closePath()
+          .fill(0xe8364f)
+          .stroke({ width: 1.5, color: OUTLINE });
+        spin.addChild(g, new Graphics().rect(-6, -6, 3.5, 2.5).rect(2.5, -6, 3.5, 2.5).fill(0xdfe5ee));
         break;
+      }
       case 'sprinkle_drop': {
         const cols = [0xff5d8f, 0x3fa9f5, 0xffd23f, 0x6fdc4a, 0x9b59d0];
         spin.addChild(new Graphics().roundRect(-2.5, -7, 5, 14, 2.5).fill(cols[Math.floor(Math.random() * cols.length)]!).stroke(ink));

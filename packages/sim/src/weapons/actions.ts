@@ -3,7 +3,7 @@ import { SUB } from '../core/units.js';
 import { QUARTER_TURN, isqrt, normalizeAngle, vecFromAngle } from '../core/trig.js';
 import { PHYS } from '../physics/constants.js';
 import { nextRange } from '../core/rng.js';
-import type { Character } from '../character/character.js';
+import { touchesHitbox, type Character } from '../character/character.js';
 import { spawnFires } from '../environment/fire.js';
 import { isSolid } from '../terrain/terrain.js';
 import type { GameState } from '../state/gameState.js';
@@ -31,8 +31,7 @@ export function fireHitscan(s: GameState, c: Character, weaponIndex: number, def
     const px = x >> 8, py = y >> 8;
     for (const o of s.characters) {
       if (o.id === c.id || o.state === 'dead' || o.state === 'drowning') continue;
-      const dx = px - (o.body.x >> 8), dy = py - (o.body.y >> 8);
-      if (dx * dx + dy * dy <= o.body.radius * o.body.radius) {
+      if (touchesHitbox(o, x, y, 0)) {
         hit = 'character';
         break;
       }

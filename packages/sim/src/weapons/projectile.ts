@@ -3,7 +3,7 @@ import { ANGLE_STEPS, HALF_TURN, atan2A, ilength, normalizeAngle, vecFromAngle }
 import { windStep } from '../environment/wind.js';
 import { isSupported, overlapsDisc } from '../physics/collision.js';
 import { PHYS } from '../physics/constants.js';
-import type { Character } from '../character/character.js';
+import { touchesHitbox, type Character } from '../character/character.js';
 import { makeBody, stepBody, type Body } from '../physics/body.js';
 import type { SimEvent } from '../core/events.js';
 import type { TerrainState } from '../terrain/terrain.js';
@@ -137,10 +137,7 @@ function hitCharacter(p: Projectile, def: WeaponDef, chars: readonly Character[]
   for (const c of chars) {
     if (c.state === 'dead' || c.state === 'drowning') continue;
     if (c.id === p.owner && p.age <= def.ignoreOwnerTicks) continue;
-    const dx = pxOf(x) - pxOf(c.body.x);
-    const dy = pxOf(y) - pxOf(c.body.y);
-    const rr = def.radius + c.body.radius;
-    if (dx * dx + dy * dy <= rr * rr) return c.id;
+    if (touchesHitbox(c, x, y, def.radius)) return c.id;
   }
   return 0;
 }
@@ -326,9 +323,7 @@ export function stepProjectile(
 function boomerangContact(p: Projectile, def: WeaponDef, chars: Character[], x: number, y: number, tick: number, events: SimEvent[]): ProjectileOutcome | null {
   for (const c of chars) {
     if (c.state === 'dead' || c.state === 'drowning') continue;
-    const dx = pxOf(x) - pxOf(c.body.x), dy = pxOf(y) - pxOf(c.body.y);
-    const rr = def.radius + c.body.radius + (c.id === p.owner ? BOOMERANG_CATCH_REACH : 0);
-    if (dx * dx + dy * dy > rr * rr) continue;
+    if (!touchesHitbox(c, x, y, def.radius + (c.id === p.owner ? BOOMERANG_CATCH_REACH : 0))) continue;
     if (c.id === p.owner) {
       if (p.age > BOOMERANG_CATCH_AFTER) {
         events.push({ type: 'ProjectileCaught', tick, id: p.id, by: c.id });

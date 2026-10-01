@@ -12,7 +12,7 @@ describe('content', () => {
       'rolling_pin',
       'acorn_mortar',
       'cookie_roller',
-      'battery_shock',
+      'magnet_bomb',
       'sprinkle_drop',
       'frosting_blaster',
       'binder_clip',
@@ -27,7 +27,7 @@ describe('content', () => {
     expect(byId.acorn_mortar!.d.clusterChild).toBe(byId.acorn_mortar__bomblet!.i);
     expect(byId.sprinkle_drop!.d.strikeChild).toBe(byId.sprinkle_drop__drop!.i);
     expect(byId.cookie_roller!.d).toMatchObject({ behavior: 'walker', remote: true, fuseTicks: 400 });
-    expect(byId.battery_shock!.d).toMatchObject({ needsTarget: true, instant: false });
+    expect(byId.magnet_bomb!.d).toMatchObject({ needsTarget: true, instant: false });
     expect(byId.sprinkle_drop!.d).toMatchObject({ needsTarget: true, instant: true });
     expect(byId.binder_clip!.d).toMatchObject({ category: 'hitscan', shotsPerTurn: 2 });
   });

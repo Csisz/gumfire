@@ -4,7 +4,7 @@ import fizzGrenade from '../weapons/fizz_grenade.json' with { type: 'json' };
 import rollingPin from '../weapons/rolling_pin.json' with { type: 'json' };
 import acornMortar from '../weapons/acorn_mortar.json' with { type: 'json' };
 import cookieRoller from '../weapons/cookie_roller.json' with { type: 'json' };
-import batteryShock from '../weapons/battery_shock.json' with { type: 'json' };
+import magnetBomb from '../weapons/magnet_bomb.json' with { type: 'json' };
 import sprinkleDrop from '../weapons/sprinkle_drop.json' with { type: 'json' };
 import frostingBlaster from '../weapons/frosting_blaster.json' with { type: 'json' };
 import binderClip from '../weapons/binder_clip.json' with { type: 'json' };
@@ -20,7 +20,7 @@ export const WEAPONS: readonly WeaponJson[] = [
   rollingPin,
   acornMortar,
   cookieRoller,
-  batteryShock,
+  magnetBomb,
   sprinkleDrop,
   frostingBlaster,
   binderClip,

@@ -69,7 +69,7 @@ export const CHAR = {
   jumpPrepTicks: 10,
   landingTicks: 8,
   forwardJump: { vx: toSub(2.5), vy: -toSub(4.5) },
-  backflip: { vx: -toSub(2.3), vy: -toSub(7.2) }, // M8 playtest: travel further back (≈165 px on flat ground)
+  backflip: { vx: -toSub(1.5), vy: -toSub(7.2) }, // playtests: −1.1 too short, −2.3 too far → ≈ 108 px back
   /** Horizontal speed when walking off a ledge. */
   walkOffVx: toSub(0.6),
   /** Steepest surface a character can land and stand on: normal within 60° of up (cos 60° = 0.5). */
@@ -91,6 +91,27 @@ export const CHAR = {
 } as const;
 
 export const MAX_CHARACTERS = 48;
+
+/**
+ * Hit shape for weapons (M9 playtest: shots aimed at a Gumling's head flew over it). The
+ * physics body stays a 9 px disc; weapons test a capsule that matches the drawn bean: a segment
+ * from the centre up to `up` px above it, thickened by `radius`.
+ */
+export const HITBOX = { up: 7, radius: 10 } as const;
+
+/** Nearest point (subpixels) of a character's hit capsule to (x, y) subpixels. */
+export function hitboxNearest(c: Character, x: number, y: number): { x: number; y: number } {
+  const top = c.body.y - HITBOX.up * SUB;
+  return { x: c.body.x, y: Math.max(top, Math.min(c.body.y, y)) };
+}
+
+/** Does a disc of radius `r` px at (x, y) subpixels touch the character's hit capsule? */
+export function touchesHitbox(c: Character, x: number, y: number, r: number): boolean {
+  const n = hitboxNearest(c, x, y);
+  const dx = (x - n.x) >> 4, dy = (y - n.y) >> 4; // 1/16 px precision keeps the squares small
+  const rr = (HITBOX.radius + r) * 16;
+  return dx * dx + dy * dy <= rr * rr;
+}
 const FUSE_BUTTONS = [Btn.Fuse1, Btn.Fuse2, Btn.Fuse3, Btn.Fuse4, Btn.Fuse5] as const;
 
 export function makeCharacter(id: number, team: number, px: number, py: number): Character {
