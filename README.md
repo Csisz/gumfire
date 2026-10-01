@@ -5,7 +5,7 @@ household-scale war on pixel-destructible terrain — wind-drifting rockets, bou
 grenades, knockback into hot cocoa. Built around a deterministic simulation so replays, online
 lockstep play and AI shot-search come for free.
 
-> Status: **M8 — vertical slice** built (M0–M7 before it). Playtest round 1 tuned; M9 (weapon framework) next. Phase 2 design (M21–M28): master plan §26.
+> Status: **M9 — full weapon framework** complete: 10 weapons from JSON (M0–M8 before it). Next: M10 environment. Phase 2 design (M21–M28): master plan §26.
 
 ## Quick start
 
@@ -18,8 +18,9 @@ pnpm bench        # crater and physics cost on bundled code
 ```
 
 **Game controls:** ← → walk · ↑ ↓ aim · hold Space to charge, release to fire · Enter jump
-(×2 backflip) · F1 Pepper Rocket · F2 Fizz Grenade (1–5 fuse, B bounce) · F3 Rolling Pin ·
-Backspace ends the retreat · drag / wheel camera, F follow · M sound · H help · P pause.
+(×2 backflip) · Q / E or click to change weapon · click the map to target (strike, homing) ·
+Space again detonates the Cookie Roller · 1–5 fuse, B bounce · Backspace ends the retreat ·
+drag / wheel camera, F follow · M sound · H help · P pause.
 
 ## Repository map
 
@@ -71,7 +72,8 @@ event stream.
 1. Add `packages/content/weapons/<id>.json` (see `pepper_rocket.json`; units are px, px/tick,
    ticks and ratios) and list it in `packages/content/src/index.ts`.
 2. `pnpm test` — the content test compiles every weapon; errors name the offending field.
-3. Supported so far: `ballistic` (impact or fuse + bounce) and `melee`. See ADR-004 and master plan §12.
+3. Blocks: delivery (projectile ballistic/walker/boomerang, melee, hitscan, strike), payload
+   (explosion, cluster, fire), modifiers (fuse, remote, bounce, homing). See ADR-004 and §12.
 
 ## Testing
 

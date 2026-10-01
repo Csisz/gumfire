@@ -4,7 +4,7 @@
  */
 export type SimEvent =
   /** Terrain pixels changed inside this inclusive rect (renderer repaints it plus a margin). */
-  | { type: 'TerrainChanged'; tick: number; x0: number; y0: number; x1: number; y1: number; changed: number; cause: 'carve' | 'tunnel' | 'girder' | 'explosion' }
+  | { type: 'TerrainChanged'; tick: number; x0: number; y0: number; x1: number; y1: number; changed: number; cause: 'carve' | 'tunnel' | 'girder' | 'explosion' | 'fire' }
   | { type: 'BodySpawned'; tick: number; id: number }
   /** A body hit terrain with this normal speed (subpixels/tick) at pixel (x, y). */
   | { type: 'BodyImpact'; tick: number; id: number; speed: number; x: number; y: number }
@@ -24,7 +24,7 @@ export type SimEvent =
   /** `speed` = launch speed in subpixels/tick; `power` = charge ticks. */
   | { type: 'ProjectileFired'; tick: number; id: number; weapon: number; owner: number; power: number; speed: number; x: number; y: number }
   /** A projectile's trigger fired here (the explosion itself follows as `Exploded`). */
-  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'timeout' | 'fuse'; characterId: number }
+  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'timeout' | 'fuse' | 'remote'; characterId: number }
   | { type: 'Exploded'; tick: number; x: number; y: number; radius: number; damage: number; cause: 'weapon' | 'death'; source: number }
   /** Pending damage was revealed (world settled). */
   | { type: 'DamageRevealed'; tick: number; total: number }
@@ -35,6 +35,18 @@ export type SimEvent =
   /** A bouncing projectile hit terrain (`speed` = normal speed, subpixels/tick). */
   | { type: 'ProjectileBounced'; tick: number; id: number; speed: number; x: number; y: number }
   | { type: 'FuseChanged'; tick: number; id: number; fuse: number; bounceHigh: boolean }
+  // ---- weapon framework (M9)
+  /** A sub-projectile (cluster bomblet, strike drop) entered the world. */
+  | { type: 'ProjectileSpawned'; tick: number; id: number; weapon: number; parent: number }
+  /** A boomerang hit terrain and dropped / was caught by its thrower / struck a character. */
+  | { type: 'ProjectileDropped'; tick: number; id: number; x: number; y: number }
+  | { type: 'ProjectileCaught'; tick: number; id: number; by: number }
+  | { type: 'ProjectileStruck'; tick: number; id: number; characterId: number }
+  /** A hitscan ray from (x0, y0) to (x1, y1); `hit` = what stopped it. */
+  | { type: 'HitscanFired'; tick: number; id: number; weapon: number; x0: number; y0: number; x1: number; y1: number; hit: 'terrain' | 'character' | 'none' }
+  | { type: 'StrikeCalled'; tick: number; id: number; weapon: number; x: number; y: number; count: number }
+  | { type: 'TargetSet'; tick: number; id: number; x: number; y: number }
+  | { type: 'FiresSpawned'; tick: number; x: number; y: number; count: number }
   /** A melee swing along `dir` (angle units); `hits` = character ids struck. */
   | { type: 'MeleeSwing'; tick: number; id: number; weapon: number; x: number; y: number; dir: number; hits: number[] }
   // ---- turn system (M7)

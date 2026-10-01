@@ -62,13 +62,13 @@
       .teamRow .bar { height: 14px; border: 2.5px solid var(--ink); border-radius: 8px; background: #eee; overflow: hidden; }
       .teamRow .bar i { display: block; height: 100%; transition: width 0.8s; }
       .teamRow.active .name::before { content: '▶ '; }
-      #weaponBar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; padding: 8px; }
-      .wtile { width: 74px; height: 74px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; display: grid; place-items: center; position: relative; cursor: pointer; transition: transform 0.08s; }
-      .wtile svg { width: 48px; height: 48px; }
+      #weaponBar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 8px; max-width: calc(100vw - 560px); flex-wrap: wrap; justify-content: center; }
+      .wtile { width: 62px; height: 62px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; display: grid; place-items: center; position: relative; cursor: pointer; transition: transform 0.08s; }
+      .wtile svg { width: 42px; height: 42px; }
       .wtile .key { position: absolute; top: -9px; left: -9px; background: var(--navy); color: #fff; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 12px; font-weight: 700; padding: 0 5px; }
       .wtile.sel { background: var(--cream); transform: translateY(-6px); box-shadow: 0 6px 0 var(--ink); }
       .wtile.off { opacity: 0.45; cursor: default; }
-      #weaponInfo { position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%); padding: 4px 14px; font-size: 18px; white-space: nowrap; }
+      #weaponInfo { position: absolute; bottom: 98px; left: 50%; transform: translateX(-50%); padding: 4px 14px; font-size: 18px; white-space: nowrap; }
       #banner { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(0.6); opacity: 0; transition: all 0.25s; font-size: 44px; font-weight: 700; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); pointer-events: none; white-space: nowrap; }
       #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
       #corner { position: absolute; top: 12px; right: 14px; display: flex; gap: 8px; }
@@ -109,7 +109,8 @@
       <div id="corner"><button id="followBtn" title="Follow (F)">◎</button><button id="muteBtn" title="Sound (M)">♪</button><button id="helpBtn" title="Controls (H)">?</button></div>
       <div id="help" class="card hidden">
         <b>Move</b> ← → · <b>Aim</b> ↑ ↓ · <b>Jump</b> Enter (×2 backflip)<br />
-        <b>Fire</b> hold Space, release · <b>Weapons</b> F1 F2 F3 or click<br />
+        <b>Fire</b> hold Space, release · <b>Weapons</b> Q / E or click<br />
+        <b>Target</b> click the map (strike, homing) · <b>Detonate</b> Space again (cookie)<br />
         <b>Grenade</b> fuse 1–5 · bounce B · <b>End retreat</b> Backspace<br />
         <b>Camera</b> drag · wheel zoom · F follow · <b>Sound</b> M
       </div>
@@ -137,7 +138,7 @@
           <label>Round <select id="optRound"><option value="300">5 min</option><option value="600" selected>10 min</option><option value="900">15 min</option></select></label>
         </div>
         <button id="startBtn" class="big">Play hot-seat!</button>
-        <div class="controls hand">Two players, one keyboard — pass it over when the turn changes.<br />← → walk · ↑ ↓ aim · hold Space to throw · Enter jump · F1–F3 weapons</div>
+        <div class="controls hand">Two players, one keyboard — pass it over when the turn changes.<br />← → walk · ↑ ↓ aim · hold Space to throw · Enter jump · Q / E weapons</div>
       </div>
     </div>
 

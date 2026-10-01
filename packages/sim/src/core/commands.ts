@@ -20,6 +20,8 @@ export type SimCommand =
   | { type: 'debugSetWind'; wind: number }
   /** Re-roll the wind from the seeded wind stream, as a new turn will (M7). */
   | { type: 'debugRollWind' }
+  /** Target point for targeted weapons (strikes, homing), whole px. */
+  | { type: 'setTarget'; x: number; y: number }
   /** Free character select (ruleset `characterSelect: free`): the active team's next character. */
   | { type: 'nextCharacter' }
   /** Detonate an explosion at pixel (x, y): radius px, damage, knockback ×256 (sandbox tool, tests). */
@@ -70,6 +72,9 @@ export function sanitizeCommand(c: unknown): SimCommand | null {
       return { type: 'debugSetWind', wind: o.wind };
     case 'debugRollWind':
       return { type: 'debugRollWind' };
+    case 'setTarget':
+      if (!coords('x', 'y')) return null;
+      return { type: 'setTarget', x: o.x as number, y: o.y as number };
     case 'nextCharacter':
       return { type: 'nextCharacter' };
     case 'debugExplode':

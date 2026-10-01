@@ -132,7 +132,7 @@ describe('determinism (physics arena)', () => {
 
   it('golden hash: simulation behaviour has not changed unintentionally', () => {
     // Update deliberately (with a docs/tuning.md note) when sim behaviour changes on purpose.
-    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"3ca9e7f6"`);
+    expect(runReplay(REPLAY).finalHash.toString(16)).toMatchInlineSnapshot(`"59132d52"`);
   });
 
   it('golden hash: a scripted turn-based match (placement, turns, retreats, reveals, sudden death)', () => {
@@ -160,7 +160,7 @@ describe('determinism (physics arena)', () => {
     const res = runReplay(replay);
     expect(res.state.match!.turn).toBeGreaterThan(8);
     expect(hashState(deserializeState(serializeState(res.state)))).toBe(res.finalHash);
-    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"5c74c658"`);
+    expect(res.finalHash.toString(16)).toMatchInlineSnapshot(`"8e4d3d6e"`);
   });
 
   it('golden: a whole match played to the end (sudden death water finishes it)', () => {
@@ -183,6 +183,6 @@ describe('determinism (physics arena)', () => {
     expect(s.match!.phase).toBe('matchOver');
     const res = runReplay({ config, inputs, commands });
     expect(res.finalHash).toBe(hashState(s));
-    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:2948:423faa0"`);
+    expect(`${s.match!.result}:${s.match!.winner}:${s.tick}:${res.finalHash.toString(16)}`).toMatchInlineSnapshot(`"win:1:2948:f81ec4f0"`);
   });
 });

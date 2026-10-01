@@ -21,7 +21,7 @@ const BINDINGS: Array<[number, string[]]> = [
   [Btn.EndTurn, ['Backspace']],
 ];
 
-export const GAME_KEYS = new Set(BINDINGS.flatMap(([, keys]) => keys).concat(['Tab', 'F1', 'F2', 'F3']));
+export const GAME_KEYS = new Set(BINDINGS.flatMap(([, keys]) => keys).concat(['Tab', 'KeyQ', 'KeyE']));
 
 export class Keyboard {
   private readonly held = new Set<string>();

@@ -14,7 +14,7 @@ import { DEATH_BLAST, type Explosion } from './explosion.js';
 export const SETTLE_TICKS = 10;
 
 export function worldInMotion(s: GameState): boolean {
-  if (s.projectiles.length > 0 || s.pendingExplosions.length > 0) return true;
+  if (s.projectiles.length > 0 || s.pendingExplosions.length > 0 || s.fires.length > 0) return true;
   for (const c of s.characters) {
     if (c.state === 'air' || c.state === 'drowning' || c.state === 'jumpPrep' || c.state === 'landing') return true;
   }

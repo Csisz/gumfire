@@ -13,6 +13,13 @@ const css = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 const ICONS: Record<string, string> = {
   pepper_rocket: `<svg viewBox="0 0 48 48"><path d="M8 30 L2 27 L6 24 L2 21 L8 18" fill="#ffb03a" stroke="#1a1320" stroke-width="2" stroke-linejoin="round"/><ellipse cx="25" cy="24" rx="16" ry="8" fill="#e8364f" stroke="#1a1320" stroke-width="3"/><ellipse cx="27" cy="20.5" rx="7" ry="2" fill="#fff" opacity=".6"/><rect x="6" y="20.5" width="6" height="7" rx="1.5" fill="#6fdc4a" stroke="#1a1320" stroke-width="2.5"/></svg>`,
   fizz_grenade: `<svg viewBox="0 0 48 48"><rect x="13" y="7" width="22" height="34" rx="5" fill="#3fa9f5" stroke="#1a1320" stroke-width="3"/><rect x="13" y="7" width="22" height="5" fill="#dfe5ee" stroke="#1a1320" stroke-width="2"/><rect x="13" y="36" width="22" height="5" fill="#dfe5ee" stroke="#1a1320" stroke-width="2"/><circle cx="25" cy="24" r="5" fill="#fff"/><rect x="17" y="14" width="3" height="19" rx="1.5" fill="#fff" opacity=".6"/><circle cx="38" cy="10" r="2.5" fill="#cdf2fa" stroke="#1a1320" stroke-width="1.5"/><circle cx="42" cy="4" r="1.8" fill="#cdf2fa" stroke="#1a1320" stroke-width="1.5"/></svg>`,
+  acorn_mortar: `<svg viewBox="0 0 48 48"><ellipse cx="24" cy="28" rx="13" ry="15" fill="#b8743a" stroke="#1a1320" stroke-width="3"/><path d="M9 20 Q24 4 39 20 Q24 24 9 20Z" fill="#7a4a24" stroke="#1a1320" stroke-width="3"/><rect x="22" y="5" width="4" height="8" rx="2" fill="#5a3418"/><ellipse cx="18" cy="28" rx="3" ry="6" fill="#fff" opacity=".35"/><circle cx="40" cy="38" r="4" fill="#b8743a" stroke="#1a1320" stroke-width="2"/><circle cx="8" cy="40" r="3" fill="#b8743a" stroke="#1a1320" stroke-width="2"/></svg>`,
+  cookie_roller: `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#d9a35c" stroke="#1a1320" stroke-width="3"/><circle cx="17" cy="18" r="3" fill="#4a2a14"/><circle cx="30" cy="16" r="2.5" fill="#4a2a14"/><circle cx="28" cy="30" r="3" fill="#4a2a14"/><circle cx="16" cy="31" r="2.2" fill="#4a2a14"/><path d="M4 44 H44" stroke="#1a1320" stroke-width="2.5" stroke-dasharray="4 4"/></svg>`,
+  battery_shock: `<svg viewBox="0 0 48 48"><rect x="6" y="15" width="32" height="18" rx="4" fill="#3fa9f5" stroke="#1a1320" stroke-width="3"/><rect x="6" y="15" width="10" height="18" fill="#2a2a33" stroke="#1a1320" stroke-width="3"/><rect x="38" y="20" width="5" height="8" rx="1.5" fill="#dfe5ee" stroke="#1a1320" stroke-width="2"/><path d="M27 17 L20 25 H26 L22 32 L31 23 H25 Z" fill="#ffd23f" stroke="#1a1320" stroke-width="1.5"/></svg>`,
+  sprinkle_drop: `<svg viewBox="0 0 48 48"><rect x="8" y="4" width="7" height="18" rx="3.5" fill="#ff5d8f" stroke="#1a1320" stroke-width="2.5" transform="rotate(20 11 13)"/><rect x="21" y="10" width="7" height="18" rx="3.5" fill="#3fa9f5" stroke="#1a1320" stroke-width="2.5" transform="rotate(20 24 19)"/><rect x="34" y="4" width="7" height="18" rx="3.5" fill="#ffd23f" stroke="#1a1320" stroke-width="2.5" transform="rotate(20 37 13)"/><path d="M6 42 H42" stroke="#1a1320" stroke-width="3"/><circle cx="24" cy="38" r="3" fill="none" stroke="#e8364f" stroke-width="2.5"/></svg>`,
+  frosting_blaster: `<svg viewBox="0 0 48 48"><path d="M10 30 Q8 16 22 14 Q26 4 34 12 Q44 14 40 28 Q42 38 30 38 H18 Q8 38 10 30Z" fill="#fff6f8" stroke="#1a1320" stroke-width="3"/><path d="M14 30 Q20 24 26 30 Q32 24 36 30" fill="none" stroke="#ff9ebb" stroke-width="3"/><path d="M18 44 L21 37 L24 44 M28 44 L31 36 L34 44" fill="#ff7a1c" stroke="#1a1320" stroke-width="1.5"/></svg>`,
+  binder_clip: `<svg viewBox="0 0 48 48"><path d="M8 20 H30 L34 34 H4 Z" fill="#2a2a33" stroke="#1a1320" stroke-width="3"/><path d="M12 20 Q12 8 19 10 M26 20 Q26 8 19 10" fill="none" stroke="#c9d3de" stroke-width="3"/><path d="M34 27 H46" stroke="#e8364f" stroke-width="3" stroke-dasharray="3 3"/></svg>`,
+  boomerang_trowel: `<svg viewBox="0 0 48 48"><path d="M24 4 L36 26 L24 32 L12 26 Z" fill="#c9d3de" stroke="#1a1320" stroke-width="3"/><rect x="21" y="31" width="6" height="14" rx="3" fill="#6fdc4a" stroke="#1a1320" stroke-width="2.5"/><path d="M40 8 Q48 20 40 32" fill="none" stroke="#1a1320" stroke-width="2" stroke-dasharray="3 3"/></svg>`,
   rolling_pin: `<svg viewBox="0 0 48 48"><g transform="rotate(-35 24 24)"><rect x="12" y="17" width="24" height="14" rx="6" fill="#e9b872" stroke="#1a1320" stroke-width="3"/><rect x="2" y="21" width="11" height="6" rx="3" fill="#c98f4f" stroke="#1a1320" stroke-width="2.5"/><rect x="35" y="21" width="11" height="6" rx="3" fill="#c98f4f" stroke="#1a1320" stroke-width="2.5"/><rect x="16" y="20" width="14" height="3" rx="1.5" fill="#fff" opacity=".5"/></g></svg>`,
 };
 
@@ -20,6 +27,8 @@ export class Hud {
   private last = new Map<string, string>();
   private bannerTimer = 0;
   private weaponTiles: HTMLElement[] = [];
+  /** Weapon index of each tile (hidden sub-projectile defs get none). */
+  private weaponIndex: number[] = [];
 
   constructor(
     private readonly state: GameState,
@@ -27,14 +36,18 @@ export class Hud {
   ) {
     const bar = $('weaponBar');
     bar.innerHTML = '';
-    this.weaponTiles = state.weapons.map((w, i) => {
+    this.weaponIndex = [];
+    this.weaponTiles = [];
+    state.weapons.forEach((w, i) => {
+      if (w.hidden) return;
       const tile = document.createElement('div');
       tile.className = 'wtile';
       tile.title = w.name;
-      tile.innerHTML = `<span class="key">F${i + 1}</span>${ICONS[w.id] ?? `<b>${w.name[0]}</b>`}`;
+      tile.innerHTML = ICONS[w.id] ?? `<b>${w.name[0]}</b>`;
       tile.addEventListener('click', () => this.onSelectWeapon(i));
       bar.appendChild(tile);
-      return tile;
+      this.weaponTiles.push(tile);
+      this.weaponIndex.push(i);
     });
     $('teamsCard').innerHTML = (state.match?.teams ?? [])
       .map(
@@ -131,13 +144,17 @@ export class Hud {
     // weapons
     const canPick = m.phase === 'turnActive' && m.shotsFired === 0 && act?.state !== 'charging';
     const sel = act?.weapon ?? -1;
-    this.weaponTiles.forEach((tile, i) => {
-      const cls = `wtile${i === sel ? ' sel' : ''}${canPick ? '' : ' off'}`;
+    this.weaponTiles.forEach((tile, k) => {
+      const cls = `wtile${this.weaponIndex[k] === sel ? ' sel' : ''}${canPick ? '' : ' off'}`;
       if (tile.className !== cls) tile.className = cls;
     });
     const w = act ? s.weapons[act.weapon] : undefined;
-    let info = w ? w.name : '';
-    if (w && w.fuseTicks > 0 && act) info += ` · fuse ${act.fuse} s (1–5) · ${act.bounceHigh ? 'bouncy' : 'soft'} (B)`;
+    let info = w ? `${w.name}  (Q/E)` : '';
+    const remoteOut = act ? s.projectiles.some((p) => p.owner === act.id && s.weapons[p.weapon]?.remote) : false;
+    if (w && w.fuseTicks > 0 && w.playerFuse && act) info += ` · fuse ${act.fuse} s (1–5) · ${act.bounceHigh ? 'bouncy' : 'soft'} (B)`;
+    if (w?.needsTarget && act) info += act.hasTarget ? ' · target set (click to move)' : ' · click the map to place a target';
+    if (w && w.shotsPerTurn > 1 && m.phase === 'turnActive') info += ` · shot ${Math.min(m.shotsFired + 1, w.shotsPerTurn)}/${w.shotsPerTurn}`;
+    if (remoteOut) info = `${w?.name ?? ''} · Space: detonate!`;
     const showInfo = m.phase === 'turnActive' && !!w;
     this.set('weaponInfo', 'text', info + showInfo, (el) => {
       el.textContent = info;

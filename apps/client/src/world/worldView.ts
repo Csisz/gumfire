@@ -31,6 +31,8 @@ export class WorldView {
   private readonly projLayer = new Container();
   private readonly fxLayer = new Container();
   private readonly reticle = new Graphics();
+  private readonly flames = new Graphics();
+  private readonly beams: Array<{ g: Graphics; age: number }> = [];
   private readonly chars = new Map<number, GumlingView>();
   private readonly projs = new Map<number, Container>();
   private readonly particles: Particle[] = [];
@@ -45,7 +47,7 @@ export class WorldView {
     this.background = new Background(t.width, t.height);
     this.terrain = new TerrainView(t, FROZEN_SNACK_THEME);
     this.water = new WaterView(t.width, t.height, state.waterY, ICE_WATER);
-    this.world.addChild(this.terrain.container, this.charLayer, this.reticle, this.projLayer, this.water.container, this.fxLayer);
+    this.world.addChild(this.terrain.container, this.charLayer, this.reticle, this.projLayer, this.flames, this.water.container, this.fxLayer);
     this.root.addChild(this.background.container, this.world);
   }
 
@@ -106,6 +108,19 @@ export class WorldView {
           this.shake = Math.min(14, this.shake + 6);
           this.popup(e.x + Math.cos(a) * 26, e.y + Math.sin(a) * 26 - 10, 'BONK!', 0xffd23f, 16);
         }
+        break;
+      }
+      case 'HitscanFired': {
+        const g = new Graphics().moveTo(e.x0, e.y0).lineTo(e.x1, e.y1).stroke({ width: 3, color: 0xfff6d8 });
+        g.moveTo(e.x0, e.y0).lineTo(e.x1, e.y1).stroke({ width: 1.2, color: 0x2a2a33 });
+        this.fxLayer.addChild(g);
+        this.beams.push({ g, age: 0 });
+        break;
+      }
+      case 'ProjectileCaught':
+      case 'ProjectileDropped': {
+        const p = this.state.projectiles.find((x) => x.id === e.id);
+        if (p) for (let k = 0; k < 6; k++) this.particle(subToPxFloat(p.x), subToPxFloat(p.y), 0xc9d3de, 1.6, (Math.random() - 0.5) * 3, -Math.random() * 2, 20, 0.1);
         break;
       }
       case 'WaterRose':
@@ -171,6 +186,7 @@ export class WorldView {
     this.water.update(nowMs);
     this.drawCharacters(alpha, nowMs, show.pending);
     this.drawProjectiles(alpha);
+    this.drawFiresAndTarget(nowMs);
     this.drawFx();
   }
 
@@ -324,24 +340,90 @@ export class WorldView {
     return c;
   }
 
+  /** Placeholder sprite per weapon (vector, reference style). `spin` children rotate with travel. */
+  private makeProjectileView(id: string): Container {
+    const ink = { width: 1.6, color: OUTLINE };
+    const c = new Container();
+    const spin = new Container();
+    spin.label = 'spin';
+    c.addChild(spin);
+    const base = id.split('__')[0]!;
+    switch (base) {
+      case 'fizz_grenade':
+        return this.makeCan();
+      case 'acorn_mortar': {
+        const small = id.endsWith('__bomblet');
+        const k = small ? 0.65 : 1;
+        spin.addChild(
+          new Graphics().ellipse(0, 1.5 * k, 5 * k, 6 * k).fill(0xb8743a).stroke(ink),
+          new Graphics().roundRect(-5.5 * k, -5 * k, 11 * k, 4.5 * k, 2).fill(0x7a4a24).stroke(ink),
+          new Graphics().rect(-0.8, -7.5 * k, 1.6, 3 * k).fill(0x5a3418),
+        );
+        break;
+      }
+      case 'cookie_roller':
+        spin.addChild(
+          new Graphics().circle(0, 0, 7).fill(0xd9a35c).stroke({ width: 2, color: OUTLINE }),
+          new Graphics().circle(-2.5, -2, 1.3).circle(2.8, 1, 1.3).circle(-0.5, 3.2, 1.2).circle(2, -3.5, 1).fill(0x4a2a14),
+        );
+        break;
+      case 'battery_shock':
+        spin.addChild(
+          new Graphics().roundRect(-7, -3.5, 14, 7, 2).fill(0x3fa9f5).stroke(ink),
+          new Graphics().rect(-7, -3.5, 5, 7).fill(0x2a2a33),
+          new Graphics().rect(7, -1.5, 2, 3).fill(0xdfe5ee).stroke({ width: 1, color: OUTLINE }),
+          new Graphics().poly([1, -3, -1, 0.5, 1.5, 0.5, -0.5, 3.5, 4, -0.5, 1.5, -0.5, 3, -3]).fill(0xffd23f),
+        );
+        break;
+      case 'sprinkle_drop': {
+        const cols = [0xff5d8f, 0x3fa9f5, 0xffd23f, 0x6fdc4a, 0x9b59d0];
+        spin.addChild(new Graphics().roundRect(-2.5, -7, 5, 14, 2.5).fill(cols[Math.floor(Math.random() * cols.length)]!).stroke(ink));
+        break;
+      }
+      case 'frosting_blaster':
+        spin.addChild(
+          new Graphics().circle(0, 0, 5).fill(0xfff6f8).stroke(ink),
+          new Graphics().circle(1.5, -1.5, 2).fill(0xff9ebb),
+        );
+        break;
+      case 'boomerang_trowel':
+        spin.addChild(
+          new Graphics().poly([0, -9, 5, 2, 0, 5, -5, 2]).fill(0xc9d3de).stroke(ink),
+          new Graphics().roundRect(-1.5, 4, 3, 7, 1.5).fill(0x6fdc4a).stroke({ width: 1.2, color: OUTLINE }),
+        );
+        break;
+      default:
+        return this.makeRocket();
+    }
+    return c;
+  }
+
   private drawProjectiles(alpha: number): void {
     const alive = new Set<number>();
     for (const p of this.state.projectiles) {
       alive.add(p.id);
+      const def = this.state.weapons[p.weapon];
       let v = this.projs.get(p.id);
       if (!v) {
-        v = p.body ? this.makeCan() : this.makeRocket();
+        v = this.makeProjectileView(def?.id ?? '');
         this.projs.set(p.id, v);
         this.projLayer.addChild(v);
       }
       const { x, y } = this.lerp(`p${p.id}`, p.x, p.y, alpha);
       v.position.set(x, y);
+      const spin = v.getChildByLabel('spin');
       if (p.body) {
         const can = v.getChildByLabel('can');
         if (can) can.rotation += p.vx / 1800;
+        if (spin) spin.rotation += p.vx / 1600; // a rolling cookie
         const fuse = v.getChildByLabel('fuse') as Text | null;
         if (fuse) fuse.text = String(Math.max(0, Math.ceil(p.fuse / TICKS_PER_SECOND)));
         if (!p.body.sleeping && Math.random() < 0.35) this.particle(x, y, 0xf2fbff, 1.2 + Math.random(), (Math.random() - 0.5) * 0.6, -0.5, 22, 0);
+      } else if (def?.behavior === 'boomerang') {
+        if (spin) spin.rotation += 0.45;
+      } else if (spin) {
+        spin.rotation = Math.atan2(p.vy, p.vx) + Math.PI / 2;
+        if (def?.homingDuration && Math.random() < 0.5) this.particle(x, y, 0xffd23f, 1.5, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 12, 0);
       } else {
         v.rotation = Math.atan2(p.vy, p.vx);
         if (Math.random() < 0.6) this.particle(x - Math.cos(v.rotation) * 11, y - Math.sin(v.rotation) * 11, 0xffffff, 2.2 + Math.random() * 2, 0, -0.1, 30, 0);
@@ -355,7 +437,37 @@ export class WorldView {
     }
   }
 
+  /** Flames (sim `fires`) and the active Gumling's target marker; redrawn every frame. */
+  private drawFiresAndTarget(now: number): void {
+    const g = this.flames.clear();
+    for (const f of this.state.fires) {
+      const x = subToPxFloat(f.x), y = subToPxFloat(f.y);
+      const flick = 0.75 + 0.25 * Math.sin(now / 60 + f.id * 1.7);
+      const h = (f.landed ? 9 : 6) * flick;
+      g.poly([x - 3.5, y + 1, x, y - h, x + 3.5, y + 1]).fill({ color: 0xff7a1c, alpha: 0.9 });
+      g.poly([x - 2, y + 1, x, y - h * 0.6, x + 2, y + 1]).fill({ color: 0xffe066, alpha: 0.95 });
+    }
+    const s = this.state;
+    const act = s.characters.find((c) => c.id === s.activeCharacter);
+    const w = act ? s.weapons[act.weapon] : undefined;
+    if (act && w?.needsTarget && act.hasTarget && (!s.match || s.match.phase === 'turnActive' || s.match.phase === 'retreat')) {
+      const x = act.targetX + 0.5, y = act.targetY + 0.5, r = 11 + Math.sin(now / 150) * 1.5;
+      g.circle(x, y, r).stroke({ width: 2.5, color: 0xe8364f });
+      g.moveTo(x - r - 5, y).lineTo(x - r + 4, y).moveTo(x + r - 4, y).lineTo(x + r + 5, y);
+      g.moveTo(x, y - r - 5).lineTo(x, y - r + 4).moveTo(x, y + r - 4).lineTo(x, y + r + 5);
+      g.stroke({ width: 2.5, color: 0xe8364f });
+    }
+  }
+
   private drawFx(): void {
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      const b = this.beams[i]!;
+      b.g.alpha = Math.max(0, 1 - ++b.age / 12);
+      if (b.age > 12) {
+        b.g.destroy();
+        this.beams.splice(i, 1);
+      }
+    }
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i]!;
       p.age++;

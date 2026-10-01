@@ -102,6 +102,28 @@ function selectWeapon(i: number): void {
   audio.play('select');
 }
 
+/** Q / E: previous / next selectable weapon. */
+function cycleWeapon(dir: number): void {
+  if (!run) return;
+  const s = run.session.state;
+  const act = s.characters.find((c) => c.id === s.activeCharacter);
+  const list = s.weapons.map((w, i) => (w.hidden ? -1 : i)).filter((i) => i >= 0);
+  if (!act || list.length === 0) return;
+  const at = Math.max(0, list.indexOf(act.weapon));
+  selectWeapon(list[(at + dir + list.length) % list.length]!);
+}
+
+/** A click on the map places the target for targeted weapons. */
+function clickWorld(sx: number, sy: number): void {
+  if (!run) return;
+  const s = run.session.state;
+  const act = s.characters.find((c) => c.id === s.activeCharacter);
+  const w = act ? s.weapons[act.weapon] : undefined;
+  if (!w?.needsTarget || s.match?.phase !== 'turnActive' || (s.match?.shotsFired ?? 0) > 0) return;
+  const p = run.camera.screenToWorld(sx, sy);
+  run.session.command({ type: 'setTarget', x: Math.round(p.x), y: Math.round(p.y) });
+}
+
 function showResults(): void {
   if (!run) return;
   const s = run.session.state, m = s.match!;
@@ -161,7 +183,23 @@ function onEvents(r: Running, events: SimEvent[]): void {
         audio.play('reveal');
         break;
       case 'FuseChanged':
+      case 'TargetSet':
+      case 'ProjectileCaught':
         audio.play('select');
+        break;
+      case 'HitscanFired':
+        audio.play('snap');
+        if (e.hit !== 'none') r.director.explosion(e.x1, e.y1, now);
+        break;
+      case 'ProjectileStruck':
+        audio.play('thwack');
+        break;
+      case 'FiresSpawned':
+        audio.play('sizzle');
+        break;
+      case 'StrikeCalled':
+        audio.play('whistle');
+        r.director.explosion(e.x, e.y, now + 1200);
         break;
       case 'SuddenDeath':
         r.hud.banner('Sudden death!', 2200);
@@ -237,7 +275,8 @@ async function main(): Promise<void> {
 
   window.addEventListener('keydown', (e) => {
     if (!run || run.over || !keyboard.enabled) return;
-    if (['F1', 'F2', 'F3'].includes(e.code)) selectWeapon(Number(e.code.slice(1)) - 1);
+    if (e.code === 'KeyQ') cycleWeapon(-1);
+    if (e.code === 'KeyE') cycleWeapon(1);
     if (e.code === 'KeyF') run.director.release();
     if (e.code === 'KeyM') $('muteBtn').textContent = audio.toggleMute() ? '✕' : '♪';
     if (e.code === 'KeyH') $('help').classList.toggle('hidden');
@@ -254,19 +293,23 @@ async function main(): Promise<void> {
 
   // camera: drag to pan (hands control to the player), wheel to zoom
   const canvas = app.canvas;
-  let drag: { x: number; y: number } | null = null;
+  let drag: { x: number; y: number; moved: number } | null = null;
   canvas.addEventListener('pointerdown', (e) => {
-    drag = { x: e.clientX, y: e.clientY };
+    drag = { x: e.clientX, y: e.clientY, moved: 0 };
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!drag || !run) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 2) run.director.takeManual();
+    drag.moved += Math.abs(dx) + Math.abs(dy);
+    if (drag.moved > 5) run.director.takeManual();
     if (run.director.isManual) run.camera.panByScreen(dx, dy);
-    drag = { x: e.clientX, y: e.clientY };
+    drag = { x: e.clientX, y: e.clientY, moved: drag.moved };
   });
-  canvas.addEventListener('pointerup', () => (drag = null));
+  canvas.addEventListener('pointerup', (e) => {
+    if (drag && drag.moved <= 5) clickWorld(e.clientX, e.clientY);
+    drag = null;
+  });
   canvas.addEventListener('pointercancel', () => (drag = null));
   canvas.addEventListener(
     'wheel',

@@ -52,6 +52,10 @@ export interface Character {
   fuse: number;
   /** Bouncy (high restitution) rather than soft throws for bouncing weapons (Alt toggles). */
   bounceHigh: boolean;
+  /** Target point for targeted weapons (setTarget command), whole px. */
+  hasTarget: boolean;
+  targetX: number;
+  targetY: number;
 }
 
 export const CHAR = {
@@ -108,6 +112,9 @@ export function makeCharacter(id: number, team: number, px: number, py: number):
     pendingDamage: 0,
     fuse: 3,
     bounceHigh: false,
+    hasTarget: false,
+    targetX: 0,
+    targetY: 0,
   };
 }
 
@@ -290,6 +297,7 @@ function stepGround(
         return -1;
       }
       if (weapon && pressed(prevInput, input, Btn.Fire)) {
+        if (weapon.needsTarget && !c.hasTarget) return -1; // pick a target first
         if (weapon.instant) return 0; // melee and other instant weapons act on the press
         c.power = 1;
         setState(c, 'charging');

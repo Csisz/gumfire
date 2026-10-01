@@ -8,6 +8,7 @@ import type { Character } from '../character/character.js';
 import { compileWeapons, type WeaponDef, type WeaponJson } from '../weapons/definition.js';
 import type { Projectile } from '../weapons/projectile.js';
 import type { Explosion } from '../explosions/explosion.js';
+import type { Fire } from '../environment/fire.js';
 import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../terrain/terrain.js';
 import { setupMatch, type MatchConfig, type MatchState } from '../match/match.js';
 
@@ -17,7 +18,7 @@ import { setupMatch, type MatchConfig, type MatchState } from '../match/match.js
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 8;
+  schema: 9;
   seed: number;
   tick: number;
   rng: RngStreams;
@@ -56,6 +57,9 @@ export interface GameState {
    * unit tests), where `activeCharacter` is chosen by `debugSelect` and damage auto-reveals.
    */
   match: MatchState | null;
+  /** Burning flames (fire payloads), in id order. */
+  fires: Fire[];
+  nextFireId: number;
 }
 
 export interface MapSpec {
@@ -84,7 +88,7 @@ export function hashWeapons(defs: readonly WeaponDef[]): number {
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
   const s: GameState = {
-    schema: 8,
+    schema: 9,
     seed,
     tick: 0,
     rng: createStreams(seed),
@@ -104,6 +108,8 @@ export function createGame(config: GameConfig): GameState {
     quietTicks: 0,
     autoReveal: true,
     match: null,
+    fires: [],
+    nextFireId: 1,
   };
   if (config.match) {
     if (!s.terrain) throw new Error('a match needs a map');
@@ -137,12 +143,14 @@ export function hashState(s: GameState): number {
   for (const c of s.characters) {
     h.int(c.id).int(c.team).str(c.state).int(c.stateTicks).int(c.facing).int(c.aim).int(c.aimHeld);
     h.int(c.hp).int(c.jumpKind).int(c.lastImpact).bool(c.fallImmune).int(c.weapon).int(c.power).int(c.pendingDamage);
-    h.int(c.fuse).bool(c.bounceHigh);
+    h.int(c.fuse).bool(c.bounceHigh).bool(c.hasTarget).int(c.targetX).int(c.targetY);
     hashBody(h, c.body);
   }
   h.u32(s.weaponsHash).int(s.wind).int(s.nextProjectileId).u32(s.projectiles.length);
   for (const p of s.projectiles) {
     h.int(p.id).int(p.weapon).int(p.owner).int(p.x).int(p.y).int(p.vx).int(p.vy).int(p.age).int(p.windRem).int(p.fuse);
+    h.bool(p.detonate).int(p.walkDir).int(p.blocked).int(p.stride).int(p.tx).int(p.ty).u32(p.struck.length);
+    for (const id of p.struck) h.int(id);
     h.bool(p.body !== null);
     if (p.body) hashBody(h, p.body);
   }
@@ -151,6 +159,8 @@ export function hashState(s: GameState): number {
   h.int(s.quietTicks).bool(s.autoReveal);
   h.bool(s.match !== null);
   if (s.match) hashMatch(h, s.match);
+  h.int(s.nextFireId).u32(s.fires.length);
+  for (const f of s.fires) h.int(f.id).int(f.x).int(f.y).int(f.vx).int(f.vy).int(f.life).bool(f.landed).int(f.damage);
   return h.digest();
 }
 
@@ -164,7 +174,7 @@ function hashMatch(h: Hasher, m: MatchState): void {
   for (const o of m.order) h.int(o);
   h.int(m.orderPos).str(m.phase).int(m.phaseTicks).int(m.turn).int(m.activeTeam);
   h.int(m.turnTicksLeft).int(m.retreatTicksLeft).int(m.roundTicksLeft).bool(m.suddenDeath);
-  h.int(m.shotsFired).str(m.result).int(m.winner);
+  h.int(m.shotsFired).bool(m.remoteWait).str(m.result).int(m.winner);
 }
 
 function hashBody(h: Hasher, b: Body): void {
@@ -182,6 +192,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 8) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 9) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

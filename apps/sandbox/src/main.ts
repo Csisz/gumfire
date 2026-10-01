@@ -466,9 +466,9 @@ async function main(): Promise<void> {
     };
     $('keys').innerHTML =
       (mode === 'match'
-        ? `<b>Hot-seat match:</b> teams take turns on one keyboard · ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Backspace ends the retreat early · R rematch<br><b>Weapons:</b> F1 Pepper Rocket · F2 Fizz Grenade (1–5 fuse, Alt bounce) · F3 Rolling Pin<br>`
+        ? `<b>Hot-seat match:</b> teams take turns on one keyboard · ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Backspace ends the retreat early · R rematch<br><b>Weapons:</b> PageUp/PageDown cycle (F1–F4 direct) · 1–5 fuse, Alt bounce · T = target at the cursor<br>`
         : `<b>Play:</b> ←/→ walk · ↑/↓ aim · hold Space: charge, release: fire · Enter jump · Enter×2 backflip · Tab next Gumling · X new wind<br>` +
-          `<b>Weapons:</b> F1 Pepper Rocket · F2 Fizz Grenade (1–5 fuse, Alt bounce) · F3 Rolling Pin<br>`) +
+          `<b>Weapons:</b> PageUp/PageDown cycle (F1–F4 direct) · 1–5 fuse, Alt bounce · T = target at the cursor<br>`) +
       `Tool: <b>${names[tool]}</b> — ${how[tool]} · Z blast · Shift+click girder · right-drag tunnel · N 50 balls · B 200 craters<br>` +
       'Middle-drag / WASD pan · wheel zoom · F fit · L follow · V verify · R restart · P pause · . step';
   }
@@ -574,10 +574,19 @@ async function main(): Promise<void> {
       camera.fitWorld();
       followActive = false;
     }
-    if (['F1', 'F2', 'F3'].includes(e.code)) {
+    if (['F1', 'F2', 'F3', 'F4'].includes(e.code) || e.code === 'PageUp' || e.code === 'PageDown') {
       e.preventDefault();
-      pendingCmds.push({ type: 'selectWeapon', index: Number(e.code.slice(1)) - 1 });
+      const act = state.characters.find((c) => c.id === state.activeCharacter);
+      const list = state.weapons.map((w, i) => (w.hidden ? -1 : i)).filter((i) => i >= 0);
+      let index = Number(e.code.slice(1)) - 1;
+      if (e.code.startsWith('Page') && act) {
+        const at = Math.max(0, list.indexOf(act.weapon));
+        index = list[(at + (e.code === 'PageDown' ? 1 : -1) + list.length) % list.length]!;
+      }
+      pendingCmds.push({ type: 'selectWeapon', index });
     }
+    // T + click: target point for targeted weapons (strike, homing)
+    if (e.code === 'KeyT' && cursorWorld) pendingCmds.push({ type: 'setTarget', x: Math.floor(cursorWorld.x), y: Math.floor(cursorWorld.y) });
     if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();
     if (e.code === 'Digit0') camera.zoomAt(1 / camera.zoom, centre().x, centre().y);
     if (e.code === 'Equal' || e.code === 'NumpadAdd') camera.zoomAt(1.25, centre().x, centre().y);

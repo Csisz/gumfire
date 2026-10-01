@@ -1,0 +1,21 @@
+{
+  "id": "cookie_roller",
+  "name": "Cookie Roller",
+  "category": "ballistic",
+  "description": "A giant cookie that rolls along the ground, hopping small bumps. Space detonates it; otherwise it goes off after 8 s.",
+  "input": { "mode": "aimCharge" },
+  "launch": { "speedMin": 1, "speedMax": 6, "chargeTicks": 40, "muzzleOffset": 14 },
+  "projectile": {
+    "radius": 6,
+    "gravityScale": 1,
+    "windFactor": 0,
+    "behavior": "walker",
+    "walker": { "speed": 2, "maxStep": 6, "hop": 4.5 },
+    "bounce": { "low": 0.2, "high": 0.2, "friction": 0.6 },
+    "triggers": [{ "kind": "fuse", "defaultSeconds": 8 }, { "kind": "remote" }],
+    "payload": { "explosion": { "radius": 52, "damage": 55, "knockback": 1.1, "carve": true } },
+    "maxLifeTicks": 2000
+  },
+  "ammo": { "default": "inf" },
+  "turn": { "endsTurn": true, "shotsPerTurn": 1 }
+}

@@ -21,7 +21,10 @@ export type Sfx =
   | 'suddenDeath'
   | 'victory'
   | 'select'
-  | 'fuse';
+  | 'fuse'
+  | 'snap'
+  | 'sizzle'
+  | 'whistle';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -145,6 +148,16 @@ export class Audio {
         break;
       case 'fuse':
         this.tone('square', 1000, 1000, 0.03, 0.08);
+        break;
+      case 'snap':
+        this.tone('square', 2200, 300, 0.07, 0.3);
+        this.noise(0.08, 0.4, 'highpass', 3000, 6000);
+        break;
+      case 'sizzle':
+        this.noise(1.2, 0.25, 'highpass', 4000, 2500);
+        break;
+      case 'whistle':
+        this.tone('sine', 1800, 600, 1.1, 0.12);
         break;
     }
   }

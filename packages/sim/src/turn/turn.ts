@@ -49,14 +49,27 @@ export function onShotFired(s: GameState, weapon: WeaponDef, events: SimEvent[])
   if (!m || m.phase !== 'turnActive') return;
   m.shotsFired++;
   if (weapon.endsTurn && m.shotsFired >= weapon.shotsPerTurn) {
-    if (m.ruleset.retreatTicks <= 0) {
-      endControl(s, m, 'retreatOver', events);
+    if (weapon.remote) {
+      m.remoteWait = true; // the owner may still detonate it; the retreat follows the bang
       return;
     }
-    m.retreatTicksLeft = m.ruleset.retreatTicks;
-    emitPhase(m, 'retreat', s.tick, events);
-    events.push({ type: 'RetreatStarted', tick: s.tick, id: s.activeCharacter, ticks: m.retreatTicksLeft });
+    startRetreat(s, m, events);
   }
+}
+
+function startRetreat(s: GameState, m: MatchState, events: SimEvent[]): void {
+  if (m.ruleset.retreatTicks <= 0) {
+    endControl(s, m, 'retreatOver', events);
+    return;
+  }
+  m.retreatTicksLeft = m.ruleset.retreatTicks;
+  emitPhase(m, 'retreat', s.tick, events);
+  events.push({ type: 'RetreatStarted', tick: s.tick, id: s.activeCharacter, ticks: m.retreatTicksLeft });
+}
+
+/** The active character's remote-triggered projectile still out, if any. */
+export function liveRemote(s: GameState, ownerId: number): GameState['projectiles'][0] | undefined {
+  return s.projectiles.find((p) => p.owner === ownerId && s.weapons[p.weapon]?.remote === true && !p.detonate);
 }
 
 /** `nextCharacter` command: free character select, before the first shot. */
@@ -125,6 +138,7 @@ function beginTurn(s: GameState, m: MatchState, events: SimEvent[]): void {
   m.turnTicksLeft = m.ruleset.turnTicks;
   m.retreatTicksLeft = 0;
   m.shotsFired = 0;
+  m.remoteWait = false;
   if (s.activeCharacter !== chosen) {
     s.activeCharacter = chosen;
     events.push({ type: 'ActiveCharacterChanged', tick: s.tick, id: chosen });
@@ -205,6 +219,10 @@ export function stepTurn(s: GameState, input: InputFrame, prevInput: InputFrame,
       const lost = controlLoss(s, events);
       if (lost) endControl(s, m, lost, events);
       else if (m.turnTicksLeft === 0) endControl(s, m, 'timeout', events);
+      else if (m.remoteWait && !s.projectiles.some((p) => p.owner === s.activeCharacter && s.weapons[p.weapon]?.remote === true)) {
+        m.remoteWait = false;
+        startRetreat(s, m, events);
+      }
       return;
     }
     case 'retreat': {

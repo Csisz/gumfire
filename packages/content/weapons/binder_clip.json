@@ -1,0 +1,10 @@
+{
+  "id": "binder_clip",
+  "name": "Binder-Clip Launcher",
+  "category": "hitscan",
+  "description": "Two straight, instant clip shots per turn. No wind, no arc — just aim.",
+  "input": { "mode": "instant" },
+  "hitscan": { "range": 900, "explosion": { "radius": 10, "damage": 20, "knockback": 1.4, "carve": true } },
+  "ammo": { "default": "inf" },
+  "turn": { "endsTurn": true, "shotsPerTurn": 2 }
+}

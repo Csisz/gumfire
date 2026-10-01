@@ -6,23 +6,28 @@ import { MAX_CHARACTERS, makeCharacter, stepCharacter } from './character/charac
 import { rollWind } from './environment/wind.js';
 import { makeProjectile, stepProjectile } from './weapons/projectile.js';
 import { meleeSwing } from './weapons/melee.js';
+import { MAX_PROJECTILES, callStrike, fireHitscan, spawnPayload } from './weapons/actions.js';
+import { stepFires } from './environment/fire.js';
 import { blastBodies, blastCharacters, type Explosion } from './explosions/explosion.js';
 import { stepSettle } from './explosions/resolve.js';
-import { controlOf, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, stepTurn } from './turn/turn.js';
+import { controlOf, liveRemote, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, stepTurn } from './turn/turn.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
 import { Mat } from './terrain/terrain.js';
 import { SUB } from './core/units.js';
 import { ilength } from './core/trig.js';
+import { Btn, pressed } from './core/input.js';
 
+export { MAX_PROJECTILES };
 /** Hard cap on commands applied per tick (protects against hostile or corrupt input). */
 export const MAX_COMMANDS_PER_TICK = 32;
-export const MAX_PROJECTILES = 64;
 
 function stepProjectiles(state: GameState, events: SimEvent[]): void {
   const t = state.terrain!;
   const keep = [];
-  for (const p of state.projectiles) {
+  const list = state.projectiles.slice(); // payloads append sub-projectiles; they fly from next tick
+  const before = list.length;
+  for (const p of list) {
     const def = state.weapons[p.weapon]!;
     const out = stepProjectile(p, def, t, state.characters, state.wind, state.waterY, state.tick, events);
     switch (out.kind) {
@@ -41,6 +46,9 @@ function stepProjectiles(state: GameState, events: SimEvent[]): void {
           cause: 'weapon',
           source: p.id,
         });
+        spawnPayload(state, def, p.owner, p.id, out.x, out.y, events);
+        break;
+      case 'gone':
         break;
       case 'splash':
         events.push({ type: 'ProjectileSplashed', tick: state.tick, id: p.id, x: out.x, y: state.waterY });
@@ -50,6 +58,8 @@ function stepProjectiles(state: GameState, events: SimEvent[]): void {
         break;
     }
   }
+  // sub-projectiles spawned this tick were appended after the stepped ones
+  for (const p of state.projectiles.slice(before)) keep.push(p);
   state.projectiles = keep;
 }
 
@@ -72,7 +82,7 @@ function resolveExplosions(state: GameState, events: SimEvent[]): void {
   }
 }
 
-function terrainEdit(state: GameState, r: EditRect | null, cause: 'carve' | 'tunnel' | 'girder' | 'explosion', events: SimEvent[]): void {
+function terrainEdit(state: GameState, r: EditRect | null, cause: 'carve' | 'tunnel' | 'girder' | 'explosion' | 'fire', events: SimEvent[]): void {
   if (!r) return;
   wakeBodiesInRect(state.bodies, r.x0, r.y0, r.x1, r.y1);
   for (const p of state.projectiles) if (p.body) wakeBodiesInRect([p.body], r.x0, r.y0, r.x1, r.y1);
@@ -99,8 +109,15 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
 
   // 2. turn pre-update: who is in control this tick, and with which buttons
   const control = controlOf(state);
-  const charInput = maskInput(state, input);
-  const charPrev = maskInput(state, state.lastInput);
+  let charInput = maskInput(state, input);
+  let charPrev = maskInput(state, state.lastInput);
+  // a remote-triggered weapon is out: Fire detonates it, and its owner stands still meanwhile
+  const remote = control.id !== 0 ? liveRemote(state, control.id) : undefined;
+  if (remote) {
+    if (pressed(state.lastInput, input, Btn.Fire)) remote.detonate = true;
+    charInput = 0;
+    charPrev = 0;
+  }
   // 3. character controller (+ airborne characters' physics). Only the controlled character
   //    receives input; the others idle, fall, land and drown on their own.
   if (state.terrain) {
@@ -108,10 +125,17 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
       const weapon = state.weapons[c.weapon] ?? null;
       const controlled = control.id !== 0 && c.id === control.id;
       const power = stepCharacter(c, state.terrain, state.waterY, state.tick, controlled, charInput, charPrev, events, weapon);
-      if (power >= 0 && weapon && weapon.category === 'melee') {
+      if (power < 0 || !weapon) continue;
+      if (weapon.category === 'melee') {
         meleeSwing(c, c.weapon, weapon, state.characters, state.tick, events);
         onShotFired(state, weapon, events);
-      } else if (power >= 0 && weapon && state.projectiles.length < MAX_PROJECTILES) {
+      } else if (weapon.category === 'hitscan') {
+        fireHitscan(state, c, c.weapon, weapon, events);
+        onShotFired(state, weapon, events);
+      } else if (weapon.category === 'strike') {
+        callStrike(state, c, c.weapon, weapon, events);
+        onShotFired(state, weapon, events);
+      } else if (state.projectiles.length < MAX_PROJECTILES) {
         const id = state.nextProjectileId++;
         const p = makeProjectile(id, c.weapon, weapon, c, power);
         state.projectiles.push(p);
@@ -125,6 +149,11 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
   if (state.terrain && state.projectiles.length > 0) stepProjectiles(state, events);
   // 7. explosions
   if (state.terrain && state.pendingExplosions.length > 0) resolveExplosions(state, events);
+  // 7b. fire: flames fall, stick, burn the ground and hurt
+  if (state.terrain && state.fires.length > 0) {
+    const t = state.terrain;
+    state.fires = stepFires(state.fires, t, state.characters, state.waterY, state.tick, events, (x, y, r) => terrainEdit(state, carveCircle(t, x, y, r), 'fire', events));
+  }
 
   // 8. physics + 9. water
   if (state.terrain && state.bodies.length > 0) {
@@ -149,6 +178,18 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
     events.push({ type: 'CharacterSpawned', tick: state.tick, id, team: cmd.team });
     return;
   }
+  if (cmd.type === 'setTarget') {
+    const ctl = controlOf(state);
+    const c = state.characters.find((x) => x.id === ctl.id);
+    const w = c ? state.weapons[c.weapon] : undefined;
+    if (!c || !w || !w.needsTarget || !ctl.mayFire || c.state === 'charging') return;
+    if (state.match && state.match.shotsFired > 0) return;
+    c.hasTarget = true;
+    c.targetX = cmd.x;
+    c.targetY = cmd.y;
+    events.push({ type: 'TargetSet', tick: state.tick, id: c.id, x: cmd.x, y: cmd.y });
+    return;
+  }
   if (cmd.type === 'nextCharacter') {
     selectNextInTeam(state, events);
     return;
@@ -164,8 +205,9 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
   }
   if (cmd.type === 'selectWeapon') {
     const c = state.characters.find((x) => x.id === state.activeCharacter);
-    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && c.state !== 'charging' && c.weapon !== cmd.index) {
+    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && !state.weapons[cmd.index]!.hidden && c.state !== 'charging' && c.weapon !== cmd.index) {
       c.weapon = cmd.index;
+      c.hasTarget = false;
       events.push({ type: 'WeaponSelected', tick: state.tick, id: c.id, weapon: cmd.index });
     }
     return;

@@ -43,6 +43,8 @@ export interface MatchState {
   suddenDeath: boolean;
   /** Turn-ending shots fired this turn. */
   shotsFired: number;
+  /** A remote-triggered weapon is out: the retreat starts when it has gone off. */
+  remoteWait: boolean;
   /** 'none' while playing; the winning team id is in `winner`. */
   result: 'none' | 'win' | 'draw';
   winner: number;
@@ -163,6 +165,7 @@ export function setupMatch(
     roundTicksLeft: ruleset.roundTicks,
     suddenDeath: false,
     shotsFired: 0,
+    remoteWait: false,
     result: 'none',
     winner: -1,
   };

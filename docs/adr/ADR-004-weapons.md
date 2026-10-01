@@ -27,3 +27,10 @@ The schema gained `category: 'melee'` with a `melee` block, `input.mode: 'instan
 trigger (optionally player-set 1–5 s) and a `bounce` block. Fused projectiles are simulated as
 physics bodies (same collision code as everything else). Still rejected explicitly: strikes,
 hitscan, cluster spawn, walkers, homing, fire — they arrive at M9.
+
+## Update (M9)
+Weapons are composed of **delivery** (projectile: ballistic / walker / boomerang; melee; hitscan;
+strike), **payload** (explosion, cluster, fire) and **modifiers** (fuse, remote, bounce, homing).
+Sub-projectiles compile to hidden defs appended after the selectable set, so the projectile
+system only ever runs "a projectile of def N". Targeted input (`target`, `targetCharge`) uses the
+`setTarget` command. New combinations are content; new block kinds are code + a fixture test.
