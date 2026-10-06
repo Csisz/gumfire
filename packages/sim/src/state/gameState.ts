@@ -11,6 +11,7 @@ import type { Explosion } from '../explosions/explosion.js';
 import type { Fire } from '../environment/fire.js';
 import { hashTerrainInto, terrainFromMaterials, type TerrainState } from '../terrain/terrain.js';
 import { findSpawn, setupMatch, type MatchConfig, type MatchState } from '../match/match.js';
+import { generateMap, type MapGenConfig } from '../mapgen/mapgen.js';
 import { compileProps, makeObject, type PropDef, type PropJson, type WorldObject } from '../environment/objects.js';
 
 /**
@@ -19,7 +20,7 @@ import { compileProps, makeObject, type PropDef, type PropJson, type WorldObject
  * deterministically. Grows milestone by milestone (see plan §7.1).
  */
 export interface GameState {
-  schema: 10;
+  schema: 13;
   seed: number;
   tick: number;
   rng: RngStreams;
@@ -80,6 +81,8 @@ export interface MapSpec {
 export interface GameConfig {
   seed: number;
   map?: MapSpec;
+  /** Generate the map instead (replays then carry only the generator settings). Ignored with `map`. */
+  mapgen?: MapGenConfig;
   /** Authored weapon data (usually `@gumfire/content`'s WEAPONS); compiled at creation. */
   weapons?: readonly WeaponJson[];
   /** Starting wind; default 0 (a match rerolls it at every turn). */
@@ -96,8 +99,9 @@ export function hashWeapons(defs: readonly WeaponDef[]): number {
 
 export function createGame(config: GameConfig): GameState {
   const seed = config.seed >>> 0;
+  if (!config.map && config.mapgen) config = { ...config, map: generateMap(config.mapgen).spec };
   const s: GameState = {
-    schema: 10,
+    schema: 13,
     seed,
     tick: 0,
     rng: createStreams(seed),
@@ -154,7 +158,7 @@ function placeObjects(s: GameState, manual?: MatchConfig['objects']): void {
   }
   const taken = s.characters.map((c) => ({ x: c.body.x >> 8, y: c.body.y >> 8 }));
   const place = (kind: 'mine' | 'barrel', count: number) => {
-    const idx = s.props.findIndex((p) => p.kind === kind);
+    const idx = s.props.findIndex((p) => p.kind === kind && !p.tags.includes('deployed'));
     if (idx < 0) return;
     for (let i = 0; i < count; i++) {
       const spot = findSpawn(t, s.rng.mapgen, s.waterY, taken, Math.max(48, m.ruleset.placementSpacing), m.ruleset.placementAboveWater);
@@ -191,6 +195,11 @@ export function hashState(s: GameState): number {
     h.int(c.id).int(c.team).str(c.state).int(c.stateTicks).int(c.facing).int(c.aim).int(c.aimHeld);
     h.int(c.hp).int(c.jumpKind).int(c.lastImpact).bool(c.fallImmune).int(c.weapon).int(c.power).int(c.pendingDamage);
     h.int(c.fuse).bool(c.bounceHigh).bool(c.hasTarget).int(c.targetX).int(c.targetY);
+    h.bool(c.chute).bool(c.jet).int(c.jetFuel).int(c.toolTicks).int(c.toolDx).int(c.toolDy).int(c.toolWeapon).u32(c.toolStruck.length);
+    for (const id of c.toolStruck) h.int(id);
+    h.bool(c.ropeOn).int(c.ropeShots).int(c.ropeWeapon).int(c.ropeLen).int(c.ropeWrapped).u32(c.ropePivots.length);
+    for (const v of c.ropePivots) h.int(v);
+    h.bool(c.headOn).int(c.headX).int(c.headY).int(c.headDx).int(c.headDy).int(c.headDist);
     hashBody(h, c.body);
   }
   h.u32(s.weaponsHash).int(s.wind).int(s.nextProjectileId).u32(s.projectiles.length);
@@ -198,7 +207,7 @@ export function hashState(s: GameState): number {
     h.int(p.id).int(p.weapon).int(p.owner).int(p.x).int(p.y).int(p.vx).int(p.vy).int(p.age).int(p.windRem).int(p.fuse);
     h.bool(p.detonate).int(p.walkDir).int(p.blocked).int(p.stride).int(p.tx).int(p.ty).u32(p.struck.length);
     for (const id of p.struck) h.int(id);
-    h.bool(p.body !== null);
+    h.int(p.bounces).bool(p.stuck).bool(p.body !== null);
     if (p.body) hashBody(h, p.body);
   }
   h.u32(s.pendingExplosions.length);
@@ -208,7 +217,7 @@ export function hashState(s: GameState): number {
   if (s.match) hashMatch(h, s.match);
   h.u32(s.propsHash).int(s.nextObjectId).u32(s.objects.length);
   for (const o of s.objects) {
-    h.int(o.id).int(o.prop).int(o.hp).int(o.fuse).bool(o.dud).bool(o.falling);
+    h.int(o.id).int(o.prop).int(o.hp).int(o.fuse).bool(o.dud).bool(o.falling).int(o.wait);
     hashBody(h, o.body);
   }
   h.int(s.nextFireId).u32(s.fires.length);
@@ -217,12 +226,15 @@ export function hashState(s: GameState): number {
 }
 
 function hashMatch(h: Hasher, m: MatchState): void {
-  h.str(JSON.stringify(m.ruleset)).u32(m.teams.length);
+  // roundTurns (M19) only joins the hash when set, so older matches and replays hash as before
+  const { roundTurns, ...older } = m.ruleset;
+  h.str(JSON.stringify(roundTurns ? m.ruleset : older)).u32(m.teams.length);
   for (const t of m.teams) {
     h.int(t.id).str(t.name).int(t.next).u32(t.characterIds.length);
     for (const id of t.characterIds) h.int(id);
     h.u32(t.ammo.length);
     for (const a of t.ammo) h.int(a);
+    h.int(t.turns).int(t.side);
   }
   h.u32(m.order.length);
   for (const o of m.order) h.int(o);
@@ -246,6 +258,6 @@ export function serializeState(s: GameState): string {
 
 export function deserializeState(json: string): GameState {
   const s = fromJson<GameState>(json);
-  if (s.schema !== 10) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
+  if (s.schema !== 13) throw new Error(`Unsupported GameState schema: ${String(s.schema)}`);
   return s;
 }

@@ -1,7 +1,7 @@
 {
   "name": "gumfire",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
   "engines": {
@@ -20,7 +20,9 @@
     "bench:carve": "node tools/bench/run.mjs tools/bench/carve.bench.ts",
     "bench:physics": "node tools/bench/run.mjs tools/bench/physics.bench.ts",
     "bench": "pnpm bench:carve && pnpm bench:physics",
-    "dev:sandbox": "pnpm --filter @gumfire/sandbox dev"
+    "dev:sandbox": "pnpm --filter @gumfire/sandbox dev",
+    "validate:maps": "node tools/bench/run.mjs tools/bench/mapgen.bench.ts",
+    "serve": "pnpm --filter @gumfire/client build && pnpm --filter @gumfire/server build && cd apps/server && STATIC_DIR=../client/dist node dist/server.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

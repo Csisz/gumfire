@@ -34,3 +34,33 @@ strike), **payload** (explosion, cluster, fire) and **modifiers** (fuse, remote,
 Sub-projectiles compile to hidden defs appended after the selectable set, so the projectile
 system only ever runs "a projectile of def N". Targeted input (`target`, `targetCharge`) uses the
 `setTarget` command. New combinations are content; new block kinds are code + a fixture test.
+
+## Update (M12): deployables, utilities, delays
+
+- New deliveries: `deploy` (places a prop from `content/props`, e.g. the Mouse Trap) and
+  `utility` with a `kind`: teleport, girder, parachute, jetpack, drill, torch, skip.
+- Utilities whose `turn.endsTurn` is false are not counted as shots: the turn goes on and a
+  weapon can follow. Targeted utilities (teleport, girder) are validated first; a refused spot
+  emits `UtilityFailed` and costs no ammo. `teleportCheck` / `girderPlan` are exported so the
+  client preview uses exactly the sim's rule.
+- Worn gear (parachute, jetpack) and tunnelling tools (drill, torch) are character state
+  (`chute`, `jet`/`jetFuel`, `tool*`, state `tool`), stepped before the controller; they switch
+  off on landing, in water, at death, or when control is lost (the open parachute stays).
+- New modifiers: `bounces` trigger (go off on the N-th hard bounce), `sticky` (stick to the first
+  terrain touched), hitscan `pellets` + `spreadDegrees` (seeded jitter from `rng.misc`), melee
+  `angleDegrees` (fixed swing) and `selfLift` (the attacker leaps too), `instant` thrown weapons
+  (dropped at the feet).
+- `turn.delayTurns`: locked for the team's first N turns (`TeamState.turns`, `delayLeft`).
+
+## Update (M13): the grapple and weapons off the ground
+
+- `utility.kind: 'rope'` (Licorice Grapple, `weapons/rope.ts`): head flight, pendulum constraint
+  (project onto the circle, drop the outward radial speed), tangential swing push, reel, wall
+  bumps halve the speed, speed cap, corner wrapping with a pivot stack. A wrap records the bend
+  direction from the motion; an unwrap needs the Gumling 2 px past the old line (no flicker).
+- Character state `rope` plus `rope*` / `head*` fields; a use pays ammo on its first bite and
+  then has `shots` free re-shots until the Gumling lands (classic forfeit rule).
+- `turn.usableFromRope` (default: ballistic, hitscan, deploy) — those weapons work from the rope
+  and the jetpack via `airCharge` (instant ones fire on the press, thrown ones charge). Using one
+  starts `ruleset.ropeRetreatSeconds` (5 s). Enter lets go of the rope / stops the jetpack;
+  Space does so only with the rope / jetpack itself in hand.

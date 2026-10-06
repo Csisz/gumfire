@@ -3,18 +3,34 @@
   "name": "Boomerang Trowel",
   "category": "ballistic",
   "description": "Thrown out, it curves back to you, smacking everyone it passes. Hitting a wall drops it.",
-  "input": { "mode": "aimCharge" },
-  "launch": { "speedMin": 4, "speedMax": 14, "chargeTicks": 50, "muzzleOffset": 14 },
+  "input": {
+    "mode": "aimCharge"
+  },
+  "launch": {
+    "speedMin": 4,
+    "speedMax": 14,
+    "chargeTicks": 50,
+    "muzzleOffset": 14
+  },
   "projectile": {
     "radius": 4,
     "gravityScale": 0.25,
     "windFactor": 0,
     "behavior": "boomerang",
-    "boomerang": { "returnAccel": 0.3, "damage": 25, "impulse": 9 },
+    "boomerang": {
+      "returnAccel": 0.3,
+      "damage": 30,
+      "impulse": 9
+    },
     "triggers": [],
     "payload": {},
     "maxLifeTicks": 400
   },
-  "ammo": { "default": 3 },
-  "turn": { "endsTurn": true, "shotsPerTurn": 1 }
+  "ammo": {
+    "default": 3
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
 }

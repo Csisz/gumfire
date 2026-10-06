@@ -52,3 +52,23 @@ The weapon ideas feed the full roster (M9, M12); the themes feed map themes (M11
 | plum | `#9b59d0` | team 4 body |
 | peel | `#ff9f1c` | team 5 body |
 | lemon | `#ffd23f` | team 6 body |
+
+## Art pack (M15a)
+Painted assets live in `apps/sandbox/public/art` with a `manifest.json` (served by both the
+sandbox and the client). Raw generations are processed by
+`python3 tools/art/process_pack.py <raw-dir> apps/sandbox/public/art`: white backgrounds are
+flood-filled away from the border, sheets are split into parts, textures are made seamless.
+- Backdrops: 2560 px wide, light fog at the bottom (the terrain stands in front of it).
+- Terrain textures: 512 px seamless squares, one per snack material.
+- Gumling poses: pale grey candy blobs without a face (tinted with the team colour in game).
+- Hats and props: cut-outs with the thick dark outline.
+Prompts describe original designs only — no existing game, brand or character.
+
+## Themes in the game (M18)
+Frozen Snack Factory, Garden Picnic, Toy Desk, Garage Junkyard, Bathroom Bubble Harbour —
+defined in `apps/client/src/world/themes.ts` (chunks, crusts, liquid, props, air, music).
+New raw art goes through `tools/art/process_pack.py` (lists `THEMES`, `TEXTURES`, `PROPS`).
+
+## Sound
+All synthesised in the browser (`audio.ts`, `music.ts`): no sample files, no licences. Voices
+are formant-filtered gibberish, never words. Each theme has its own lead instrument.

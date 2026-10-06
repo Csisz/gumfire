@@ -18,7 +18,16 @@ import { degToAngle, vecFromAngle } from '../core/trig.js';
  */
 
 // ---------------------------------------------------------------- authored (JSON) shape
-export type WeaponCategory = 'ballistic' | 'melee' | 'hitscan' | 'strike';
+export type WeaponCategory = 'ballistic' | 'melee' | 'hitscan' | 'strike' | 'deploy' | 'utility';
+/**
+ * Utilities (M12): movement and terrain tools. They do not end the turn unless the JSON says so.
+ *   teleport  — click any free spot;            girder   — place a beam at the target, tilted by the aim
+ *   parachute — open while falling;             jetpack  — Fire to start, arrows to fly, Fire to stop
+ *   drill     — dig straight down for a while;  torch    — burn a tunnel along the aim
+ *   skip      — end the turn now;             rope     — a swinging grapple (M13, weapons/rope.ts)
+ */
+export type UtilityKind = 'teleport' | 'girder' | 'parachute' | 'jetpack' | 'drill' | 'torch' | 'skip' | 'rope';
+export const UTILITY_KINDS: readonly UtilityKind[] = ['teleport', 'girder', 'parachute', 'jetpack', 'drill', 'torch', 'skip', 'rope'];
 export type ProjectileBehavior = 'ballistic' | 'walker' | 'boomerang';
 
 export interface ExplosionJson {
@@ -51,7 +60,11 @@ export interface ProjectileJson {
     | { kind: 'impact'; ignoreOwnerTicks?: number }
     | { kind: 'fuse'; defaultSeconds: number; playerSet?: boolean }
     | { kind: 'remote' }
+    /** Goes off on its `count`-th hard bounce (or its fuse, whichever comes first). */
+    | { kind: 'bounces'; count: number }
   >;
+  /** Sticks where it first touches terrain and stays there (a fused projectile without bouncing). */
+  sticky?: boolean;
   /** Bouncing body (fused grenades, walkers): restitution for the low / high setting. */
   bounce?: { low: number; high: number; friction: number };
   /** Walks along the ground once it lands, hopping over steps it cannot climb. */
@@ -73,6 +86,10 @@ export interface MeleeJson {
   damage: number;
   /** Launch speed given to the target along the aim, px/tick. */
   impulse: number;
+  /** Swing in this fixed direction (degrees above forward) instead of the aim. */
+  angleDegrees?: number;
+  /** The attacker leaps along with the swing at this speed, px/tick (an uppercut). */
+  selfLift?: number;
 }
 
 export interface HitscanJson {
@@ -80,6 +97,40 @@ export interface HitscanJson {
   range: number;
   /** The small blast where the ray stops. */
   explosion: ExplosionJson;
+  /** Rays per shot (a spray), spread evenly over `spreadDegrees` around the aim. */
+  pellets?: number;
+  spreadDegrees?: number;
+}
+
+export interface DeployJson {
+  /** Prop id placed in front of the user (it must be in the match's props). */
+  prop: string;
+}
+
+export interface UtilityJson {
+  kind: UtilityKind;
+  /** girder: beam length and thickness, px; how far from the user it may go, px. */
+  length?: number;
+  thickness?: number;
+  range?: number;
+  /** jetpack: fuel, seconds of thrust; thrust, px/tick². */
+  fuelSeconds?: number;
+  thrust?: number;
+  /** parachute: fall speed, px/tick; share of the wind it drifts with. */
+  fallSpeed?: number;
+  windFactor?: number;
+  /** drill / torch: how long it runs, s; tunnel radius, px; speed, px/tick; damage to whoever it touches. */
+  seconds?: number;
+  radius?: number;
+  speed?: number;
+  damage?: number;
+  /** rope: max length, px; head speed, px/tick; shots per use; speed cap, px/tick; swing push, px/tick²; reel speed, px/tick. */
+  maxLength?: number;
+  headSpeed?: number;
+  shots?: number;
+  maxSpeed?: number;
+  swing?: number;
+  reel?: number;
 }
 
 export interface StrikeJson {
@@ -112,8 +163,11 @@ export interface WeaponJson {
   melee?: MeleeJson;
   hitscan?: HitscanJson;
   strike?: StrikeJson;
+  deploy?: DeployJson;
+  utility?: UtilityJson;
   ammo: { default: number | 'inf' };
-  turn: { endsTurn: boolean; shotsPerTurn: number };
+  /** `delayTurns`: locked for the team's first N turns (big weapons wait, classic "delay"). */
+  turn: { endsTurn: boolean; shotsPerTurn: number; delayTurns?: number; usableFromRope?: boolean };
 }
 
 // ---------------------------------------------------------------- compiled (sim) shape
@@ -156,6 +210,10 @@ export interface WeaponDef {
   boomReturnAccel: number; // subpixels/tick²
   boomDamage: number;
   boomImpulse: number; // subpixels/tick
+  /** Goes off on this many hard bounces; 0 = no bounce trigger. */
+  bounceLimit: number;
+  /** Sticks to the first terrain it touches. */
+  sticky: boolean;
   maxLifeTicks: number;
   // ---- payload
   explosionRadius: number; // px
@@ -176,18 +234,47 @@ export interface WeaponDef {
   meleeArcCos: number;
   meleeDamage: number;
   meleeImpulse: number; // subpixels/tick
+  /** Fixed swing direction (angle units above forward); −1 = follow the aim. */
+  meleeAngle: number;
+  meleeSelfLift: number; // subpixels/tick
   // ---- hitscan
   hitscanRange: number; // px
+  pellets: number;
+  pelletSpread: number; // angle units (full fan)
   // ---- strike
   strikeCount: number;
   strikeSpacing: number; // px
   strikeVx: number; // subpixels/tick
   strikeVy: number;
   strikeChild: number; // def index, −1 = none
+  // ---- deploy
+  deployProp: string;
+  // ---- utility
+  utility: UtilityKind | '';
+  girderLength: number; // px
+  girderThickness: number; // px
+  girderRange: number; // px
+  jetFuel: number; // ticks
+  jetThrust: number; // subpixels/tick²
+  chuteFall: number; // subpixels/tick
+  chuteWind: number; // ×256
+  toolTicks: number;
+  toolRadius: number; // px
+  toolSpeed: number; // subpixels/tick
+  toolDamage: number;
+  ropeLength: number; // px
+  ropeHeadSpeed: number; // px/tick
+  ropeShots: number;
+  ropeMaxSpeed: number; // subpixels/tick
+  ropeSwing: number; // subpixels/tick²
+  ropeReel: number; // subpixels/tick
   // ---- rules
   ammo: number; // −1 = infinite
   endsTurn: boolean;
   shotsPerTurn: number;
+  delayTurns: number;
+  /** Can be used while hanging on the rope or flying the jetpack (thrown, dropped, guns). */
+  usableFromRope: boolean;
 }
 
 export class WeaponDefinitionError extends Error {}
@@ -242,6 +329,8 @@ function blank(id: string, name: string, category: WeaponCategory): WeaponDef {
     boomReturnAccel: 0,
     boomDamage: 0,
     boomImpulse: 0,
+    bounceLimit: 0,
+    sticky: false,
     maxLifeTicks: 1,
     explosionRadius: 0,
     damage: 0,
@@ -259,15 +348,40 @@ function blank(id: string, name: string, category: WeaponCategory): WeaponDef {
     meleeArcCos: 0,
     meleeDamage: 0,
     meleeImpulse: 0,
+    meleeAngle: -1,
+    meleeSelfLift: 0,
     hitscanRange: 0,
+    pellets: 1,
+    pelletSpread: 0,
     strikeCount: 0,
     strikeSpacing: 0,
     strikeVx: 0,
     strikeVy: 0,
     strikeChild: -1,
+    deployProp: '',
+    utility: '',
+    girderLength: 0,
+    girderThickness: 0,
+    girderRange: 0,
+    jetFuel: 0,
+    jetThrust: 0,
+    chuteFall: 0,
+    chuteWind: 0,
+    toolTicks: 0,
+    toolRadius: 0,
+    toolSpeed: 0,
+    toolDamage: 0,
+    ropeLength: 0,
+    ropeHeadSpeed: 0,
+    ropeShots: 0,
+    ropeMaxSpeed: 0,
+    ropeSwing: 0,
+    ropeReel: 0,
     ammo: -1,
     endsTurn: true,
     shotsPerTurn: 1,
+    delayTurns: 0,
+    usableFromRope: false,
   };
 }
 
@@ -297,13 +411,20 @@ function projectileInto(d: WeaponDef, at: string, P: ProjectileJson, kids: Child
   const impact = P.triggers?.find((t) => t.kind === 'impact');
   const fuse = P.triggers?.find((t) => t.kind === 'fuse');
   const remote = P.triggers?.find((t) => t.kind === 'remote');
-  if (!impact && !fuse && !remote && behavior !== 'boomerang') throw new WeaponDefinitionError(`${at}.triggers: needs an 'impact', 'fuse' or 'remote' trigger`);
+  const bounces = P.triggers?.find((t) => t.kind === 'bounces');
+  if (!impact && !fuse && !remote && !bounces && behavior !== 'boomerang') throw new WeaponDefinitionError(`${at}.triggers: needs an 'impact', 'fuse', 'remote' or 'bounces' trigger`);
+  if (bounces) {
+    if (!P.bounce) throw new WeaponDefinitionError(`${at}.triggers.bounces: needs a bounce block`);
+    d.bounceLimit = num(`${at}.triggers.bounces.count`, bounces.count, 1, 20, true);
+  }
+  d.sticky = P.sticky === true;
+  if (d.sticky && (P.bounce || impact || behavior !== 'ballistic')) throw new WeaponDefinitionError(`${at}.sticky: a sticky projectile is ballistic, with no bounce block and no impact trigger`);
   d.impact = impact !== undefined;
   d.ignoreOwnerTicks = impact ? num(`${at}.triggers.impact.ignoreOwnerTicks`, impact.ignoreOwnerTicks ?? 0, 0, 100, true) : 0;
   d.fuseTicks = fuse ? secondsTicks(num(`${at}.triggers.fuse.defaultSeconds`, fuse.defaultSeconds, 0.1, 10)) : 0;
   d.playerFuse = fuse?.playerSet === true;
   d.remote = remote !== undefined;
-  if ((fuse || behavior === 'walker') && !P.bounce) throw new WeaponDefinitionError(`${at}.bounce: fused projectiles and walkers need a bounce block`);
+  if ((fuse || behavior === 'walker') && !P.bounce && !d.sticky) throw new WeaponDefinitionError(`${at}.bounce: fused projectiles and walkers need a bounce block`);
   if (P.bounce) {
     d.bounceLow = ratio(num(`${at}.bounce.low`, P.bounce.low, 0, 1));
     d.bounceHigh = ratio(num(`${at}.bounce.high`, P.bounce.high, 0, 1));
@@ -362,8 +483,8 @@ function compileInto(w: WeaponJson, kids: Children): WeaponDef {
   const at = (p: string) => `${w?.id ?? '?'}.${p}`;
   if (!w || typeof w.id !== 'string' || !/^[a-z][a-z0-9_]{1,40}$/.test(w.id)) throw new WeaponDefinitionError(`bad weapon id ${JSON.stringify(w?.id)}`);
   if (typeof w.name !== 'string' || w.name.length < 1 || w.name.length > 40) throw new WeaponDefinitionError(at('name'));
-  if (!['ballistic', 'melee', 'hitscan', 'strike'].includes(w.category)) {
-    throw new WeaponDefinitionError(`${at('category')}: one of ballistic, melee, hitscan, strike (got ${JSON.stringify(w.category)})`);
+  if (!['ballistic', 'melee', 'hitscan', 'strike', 'deploy', 'utility'].includes(w.category)) {
+    throw new WeaponDefinitionError(`${at('category')}: one of ballistic, melee, hitscan, strike, deploy, utility (got ${JSON.stringify(w.category)})`);
   }
   const mode = w.input?.mode;
   if (!['aimCharge', 'instant', 'target', 'targetCharge'].includes(mode)) throw new WeaponDefinitionError(`${at('input.mode')}: aimCharge, instant, target or targetCharge`);
@@ -373,6 +494,9 @@ function compileInto(w: WeaponJson, kids: Children): WeaponDef {
   d.ammo = w.ammo?.default === 'inf' ? -1 : num(at('ammo.default'), w.ammo?.default, 0, 99, true);
   d.endsTurn = w.turn?.endsTurn !== false;
   d.shotsPerTurn = num(at('turn.shotsPerTurn'), w.turn?.shotsPerTurn ?? 1, 1, 10, true);
+  d.delayTurns = num(at('turn.delayTurns'), w.turn?.delayTurns ?? 0, 0, 20, true);
+  // thrown, dropped and gun weapons work from the rope / jetpack unless the JSON says no
+  d.usableFromRope = ['ballistic', 'hitscan', 'deploy'].includes(w.category) && w.turn?.usableFromRope !== false;
 
   switch (w.category) {
     case 'melee': {
@@ -383,6 +507,8 @@ function compileInto(w: WeaponJson, kids: Children): WeaponDef {
       d.meleeArcCos = cosDeg256(Math.round(num(at('melee.arcDegrees'), M.arcDegrees, 1, 360) / 2));
       d.meleeDamage = num(at('melee.damage'), M.damage, 0, 200, true);
       d.meleeImpulse = toSub(num(at('melee.impulse'), M.impulse, 0, 32));
+      if (M.angleDegrees !== undefined) d.meleeAngle = degToAngle(num(at('melee.angleDegrees'), M.angleDegrees, 0, 90));
+      d.meleeSelfLift = toSub(num(at('melee.selfLift'), M.selfLift ?? 0, 0, 16));
       return d;
     }
     case 'hitscan': {
@@ -391,9 +517,21 @@ function compileInto(w: WeaponJson, kids: Children): WeaponDef {
       if (mode !== 'instant') throw new WeaponDefinitionError(`${at('input.mode')}: hitscan weapons are 'instant'`);
       d.hitscanRange = num(at('hitscan.range'), H.range, 8, 4000, true);
       d.muzzleOffset = 12;
+      d.pellets = num(at('hitscan.pellets'), H.pellets ?? 1, 1, 16, true);
+      d.pelletSpread = degToAngle(num(at('hitscan.spreadDegrees'), H.spreadDegrees ?? 0, 0, 90));
       explosionInto(d, at('hitscan.explosion'), H.explosion);
       return d;
     }
+    case 'deploy': {
+      const D = w.deploy;
+      if (!D || typeof D.prop !== 'string' || !/^[a-z][a-z0-9_]{1,40}$/.test(D.prop)) throw new WeaponDefinitionError(`${w.id}: a deploy weapon needs 'deploy.prop'`);
+      if (mode !== 'instant') throw new WeaponDefinitionError(`${at('input.mode')}: deploy weapons are 'instant'`);
+      d.deployProp = D.prop;
+      return d;
+    }
+    case 'utility':
+      utilityInto(d, w, mode, at);
+      return d;
     case 'strike': {
       const S = w.strike;
       if (!S) throw new WeaponDefinitionError(`${w.id}: a strike weapon needs a 'strike' block`);
@@ -408,7 +546,7 @@ function compileInto(w: WeaponJson, kids: Children): WeaponDef {
     case 'ballistic': {
       const L = w.launch;
       if (!L || !w.projectile) throw new WeaponDefinitionError(`${w.id}: launch and projectile blocks are required`);
-      if (mode === 'instant' || mode === 'target') throw new WeaponDefinitionError(`${at('input.mode')}: thrown weapons are 'aimCharge' or 'targetCharge'`);
+      if (mode === 'target') throw new WeaponDefinitionError(`${at('input.mode')}: thrown weapons are 'aimCharge', 'targetCharge' or 'instant' (dropped)`);
       const speedMin = num(at('launch.speedMin'), L.speedMin, 0, 32);
       d.speedMin = toSub(speedMin);
       d.speedMax = toSub(num(at('launch.speedMax'), L.speedMax, speedMin, 32));
@@ -418,6 +556,54 @@ function compileInto(w: WeaponJson, kids: Children): WeaponDef {
       if (d.homingDuration > 0 && !d.needsTarget) throw new WeaponDefinitionError(`${at('input.mode')}: homing needs 'targetCharge'`);
       return d;
     }
+  }
+}
+
+const UTILITY_MODES: Record<UtilityKind, string> = {
+  teleport: 'target',
+  girder: 'target',
+  parachute: 'instant',
+  jetpack: 'instant',
+  drill: 'instant',
+  torch: 'instant',
+  skip: 'instant',
+  rope: 'instant',
+};
+
+function utilityInto(d: WeaponDef, w: WeaponJson, mode: string, at: (p: string) => string): void {
+  const U = w.utility;
+  if (!U || !UTILITY_KINDS.includes(U.kind)) throw new WeaponDefinitionError(`${at('utility.kind')}: one of ${UTILITY_KINDS.join(', ')}`);
+  if (mode !== UTILITY_MODES[U.kind]) throw new WeaponDefinitionError(`${at('input.mode')}: a ${U.kind} is '${UTILITY_MODES[U.kind]}'`);
+  d.utility = U.kind;
+  switch (U.kind) {
+    case 'girder':
+      d.girderLength = num(at('utility.length'), U.length, 8, 200, true);
+      d.girderThickness = num(at('utility.thickness'), U.thickness, 2, 30, true);
+      d.girderRange = num(at('utility.range'), U.range, 20, 2000, true);
+      break;
+    case 'jetpack':
+      d.jetFuel = secondsTicks(num(at('utility.fuelSeconds'), U.fuelSeconds, 0.5, 30));
+      d.jetThrust = Math.round(num(at('utility.thrust'), U.thrust, 0.05, 2) * SUB);
+      break;
+    case 'parachute':
+      d.chuteFall = toSub(num(at('utility.fallSpeed'), U.fallSpeed, 0.2, 6));
+      d.chuteWind = ratio(num(at('utility.windFactor'), U.windFactor ?? 1, 0, 8));
+      break;
+    case 'drill':
+    case 'torch':
+      d.toolTicks = secondsTicks(num(at('utility.seconds'), U.seconds, 0.2, 20));
+      d.toolRadius = num(at('utility.radius'), U.radius, 10, 30, true);
+      d.toolSpeed = toSub(num(at('utility.speed'), U.speed, 0.1, 4));
+      d.toolDamage = num(at('utility.damage'), U.damage ?? 0, 0, 100, true);
+      break;
+    case 'rope':
+      d.ropeLength = num(at('utility.maxLength'), U.maxLength, 40, 1000, true);
+      d.ropeHeadSpeed = num(at('utility.headSpeed'), U.headSpeed, 4, 80, true);
+      d.ropeShots = num(at('utility.shots'), U.shots, 1, 20, true);
+      d.ropeMaxSpeed = toSub(num(at('utility.maxSpeed'), U.maxSpeed, 2, 30));
+      d.ropeSwing = Math.max(1, Math.round(num(at('utility.swing'), U.swing, 0.01, 1) * SUB));
+      d.ropeReel = toSub(num(at('utility.reel'), U.reel, 0.5, 8));
+      break;
   }
 }
 

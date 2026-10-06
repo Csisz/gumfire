@@ -27,6 +27,8 @@ export interface TerrainTheme {
   rock: RGB;
   rockStripe: RGB;
   girder: RGB;
+  /** Docking holes pressed into girders (they are biscuits). */
+  girderDark: RGB;
   border: RGB;
   /** Carved-out area behind the terrain. */
   backWall: RGB;
@@ -57,7 +59,8 @@ export const BIRTHDAY_THEME: TerrainTheme = {
   outline: hex(0x3b2418),
   rock: hex(0x7a4a2a),
   rockStripe: hex(0x9c6236),
-  girder: hex(0xc9c9d6),
+  girder: hex(0xe3ad62),
+  girderDark: hex(0xb57a38),
   border: hex(0x2e2433),
   backWall: hex(0xa8703f),
   backWallDark: hex(0x8f5b31),
@@ -84,7 +87,8 @@ export const FROZEN_SNACK_THEME: TerrainTheme = {
   outline: hex(0x3a2418),
   rock: hex(0x6b3f24),
   rockStripe: hex(0x8a5530),
-  girder: hex(0xc9d3de),
+  girder: hex(0xe8b46a),
+  girderDark: hex(0xb57a38),
   border: hex(0x2e2433),
   backWall: hex(0xc99a6a),
   backWallDark: hex(0xb8875a),
@@ -93,6 +97,34 @@ export const FROZEN_SNACK_THEME: TerrainTheme = {
   scorchDark: hex(0xb07e4c),
   scorchPx: 4,
   frostDepth: 10,
+  outlinePx: 2,
+};
+
+/**
+ * Garden Picnic (art board 5): rich brown earth under a thick grass top with green drips,
+ * pebbles and petals in the soil, biscuit-coloured hard ground.
+ */
+export const GARDEN_PICNIC_THEME: TerrainTheme = {
+  soil: hex(0x9a6a44),
+  soilDark: hex(0x7f5435),
+  soilLight: hex(0xb07e55),
+  sprinkles: [hex(0xc9b8a6), hex(0xffffff), hex(0xff5d8f), hex(0xffd23f), hex(0x6e4a30)],
+  frosting: hex(0x7ed957),
+  frostingShade: hex(0x58b83a),
+  drip: hex(0x4fa834),
+  outline: hex(0x3a2418),
+  rock: hex(0xe9c48a),
+  rockStripe: hex(0xd8ad6c),
+  girder: hex(0xe3ad62),
+  girderDark: hex(0xa86f33),
+  border: hex(0x4a3324),
+  backWall: hex(0xb08a66),
+  backWallDark: hex(0xa07a58),
+  backWallAlpha: 38,
+  scorch: hex(0x7c5233),
+  scorchDark: hex(0x5e3a22),
+  scorchPx: 4,
+  frostDepth: 9,
   outlinePx: 2,
 };
 
@@ -267,7 +299,8 @@ export function paintTerrainRect(
         continue;
       }
       if (m === GIRDER) {
-        put(p, theme.girder);
+        // a biscuit: golden, with a grid of docking holes
+        put(p, (x & 7) === 3 && y % 6 === 2 ? theme.girderDark : theme.girder);
         continue;
       }
       if (m !== SOIL) {
@@ -324,3 +357,60 @@ export function paintTerrainRect(
 export function paintTerrain(t: TerrainLike, theme: TerrainTheme, out: Uint8ClampedArray | Uint8Array, original?: Uint8Array): void {
   paintTerrainRect(t, theme, out, 0, 0, t.width - 1, t.height - 1, original);
 }
+
+/** Toy Desk (art board 2): cardboard and notebook paper with a torn paper top. */
+export const TOY_DESK_THEME: TerrainTheme = {
+  ...FROZEN_SNACK_THEME,
+  soil: hex(0xc99a5e),
+  soilDark: hex(0xa97a44),
+  soilLight: hex(0xdcb47c),
+  sprinkles: [hex(0xff5d8f), hex(0x3fa9f5), hex(0xffd23f), hex(0x6fdc4a), hex(0x8a5a33)],
+  frosting: hex(0xfbf7ee),
+  frostingShade: hex(0xe6dccb),
+  drip: hex(0xd8ccb6),
+  rock: hex(0xe3a95c),
+  rockStripe: hex(0xc98d43),
+  backWall: hex(0xb68a56),
+  backWallDark: hex(0x9c7445),
+  scorch: hex(0x8a6a4a),
+  scorchDark: hex(0x5e4632),
+};
+
+/** Garage Junkyard (art board 3): packed dirt and steel with an oily rust-brown top. */
+export const GARAGE_THEME: TerrainTheme = {
+  ...FROZEN_SNACK_THEME,
+  soil: hex(0x8a5c3a),
+  soilDark: hex(0x6e472c),
+  soilLight: hex(0xa47150),
+  sprinkles: [hex(0x9aa3ad), hex(0x6b7480), hex(0xc9cdd2), hex(0x5a3a26), hex(0xd9a441)],
+  frosting: hex(0x9aa3ad),
+  frostingShade: hex(0x737c87),
+  drip: hex(0x5c636c),
+  rock: hex(0x7d8590),
+  rockStripe: hex(0x646c76),
+  girder: hex(0xa8b0b9),
+  girderDark: hex(0x7d8590),
+  backWall: hex(0x6e472c),
+  backWallDark: hex(0x553620),
+  scorch: hex(0x4a3628),
+  scorchDark: hex(0x2e221a),
+};
+
+/** Bathroom Bubble Harbour (art board 4): sponges and soap under a bubbly foam top. */
+export const BATH_THEME: TerrainTheme = {
+  ...FROZEN_SNACK_THEME,
+  soil: hex(0xf3cf4a),
+  soilDark: hex(0xd9b232),
+  soilLight: hex(0xf9df7a),
+  sprinkles: [hex(0xffffff), hex(0xd9f3ff), hex(0xffb3cf), hex(0xbff0e0), hex(0xffffff)],
+  frosting: hex(0xffffff),
+  frostingShade: hex(0xdcefff),
+  drip: hex(0xc8e6fb),
+  outline: hex(0x24486e),
+  rock: hex(0xf2a8c4),
+  rockStripe: hex(0xe48fb0),
+  backWall: hex(0xc9a83a),
+  backWallDark: hex(0xb08f2a),
+  scorch: hex(0xa9925a),
+  scorchDark: hex(0x7a693e),
+};

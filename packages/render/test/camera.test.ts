@@ -65,4 +65,13 @@ describe('Camera', () => {
     expect(510 * tr.scale + tr.x).toBeCloseTo(s.x);
     expect(320 * tr.scale + tr.y).toBeCloseTo(s.y);
   });
+
+  it('fillWidth: never zooms out past the map width plus its side margins', () => {
+    const cam = new Camera(1920, 700, { minZoom: 0.3, sideMargin: 240, fillWidth: true });
+    cam.setViewport(1900, 1000);
+    cam.zoomAt(0.01, 950, 500);
+    expect(cam.zoom).toBeCloseTo(1900 / (1920 + 480), 5);
+    const wide = cam.screenToWorld(0, 500).x;
+    expect(wide).toBeGreaterThanOrEqual(-240 - 1e-6);
+  });
 });

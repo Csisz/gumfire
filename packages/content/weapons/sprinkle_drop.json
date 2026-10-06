@@ -3,21 +3,40 @@
   "name": "Sprinkle Drop",
   "category": "strike",
   "description": "Click a target: five giant sugar sprinkles rain down on it from the sky, drifting the way you face.",
-  "input": { "mode": "target" },
+  "input": {
+    "mode": "target"
+  },
   "strike": {
     "count": 5,
-    "spacing": 30,
+    "spacing": 22,
     "vx": 2,
     "vy": 3,
     "projectile": {
       "radius": 3,
       "gravityScale": 1,
       "windFactor": 0.5,
-      "triggers": [{ "kind": "impact" }],
-      "payload": { "explosion": { "radius": 26, "damage": 25, "knockback": 0.9, "carve": true } },
+      "triggers": [
+        {
+          "kind": "impact"
+        }
+      ],
+      "payload": {
+        "explosion": {
+          "radius": 30,
+          "damage": 30,
+          "knockback": 0.9,
+          "carve": true
+        }
+      },
       "maxLifeTicks": 1500
     }
   },
-  "ammo": { "default": 1 },
-  "turn": { "endsTurn": true, "shotsPerTurn": 1 }
+  "ammo": {
+    "default": 1
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1,
+    "delayTurns": 2
+  }
 }

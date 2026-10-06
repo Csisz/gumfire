@@ -1,0 +1,22 @@
+{
+  "id": "biscuit_bridge",
+  "name": "Biscuit Bridge",
+  "category": "utility",
+  "description": "Place a long biscuit beam: click where it goes, tilt it with \u2191 \u2193, Fire. Your turn goes on.",
+  "input": {
+    "mode": "target"
+  },
+  "utility": {
+    "kind": "girder",
+    "length": 64,
+    "thickness": 10,
+    "range": 220
+  },
+  "ammo": {
+    "default": 3
+  },
+  "turn": {
+    "endsTurn": false,
+    "shotsPerTurn": 1
+  }
+}

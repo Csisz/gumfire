@@ -51,11 +51,15 @@ export interface Projectile {
   ty: number;
   /** Boomerang: characters already struck on this throw. */
   struck: number[];
+  /** Hard bounces so far (bounce-count trigger). */
+  bounces: number;
+  /** Sticky: stuck to terrain. */
+  stuck: boolean;
 }
 
 export type ProjectileOutcome =
   | { kind: 'flying' }
-  | { kind: 'explode'; x: number; y: number; hit: 'terrain' | 'character' | 'object' | 'timeout' | 'fuse' | 'remote'; characterId: number }
+  | { kind: 'explode'; x: number; y: number; hit: 'terrain' | 'character' | 'object' | 'timeout' | 'fuse' | 'remote' | 'bounces'; characterId: number }
   | { kind: 'splash'; x: number }
   | { kind: 'lost' }
   /** Ended without a payload (a boomerang caught or dropped). */
@@ -72,6 +76,7 @@ export function launchVector(aim: number, facing: number, speed: number): { vx: 
 }
 
 function bodyFor(id: number, def: WeaponDef, x: number, y: number, vx: number, vy: number, bouncy: boolean): Body | null {
+  if (def.sticky) return null;
   if (!(def.bounceLow > 0 || def.bounceHigh > 0 || def.fuseTicks > 0 || def.behavior === 'walker')) return null;
   return makeBody(id, x, y, vx, vy, {
     radius: def.radius,
@@ -102,6 +107,8 @@ export function spawnProjectile(id: number, weaponIndex: number, def: WeaponDef,
     tx: x >> 8,
     ty: y >> 8,
     struck: [],
+    bounces: 0,
+    stuck: false,
   };
 }
 
@@ -133,6 +140,8 @@ const WALK_RESET = 40;
 const BOOMERANG_HOME_LIFT = 20;
 const BOOMERANG_CATCH_REACH = 10;
 const BOOMERANG_CATCH_AFTER = 20;
+/** A bounce this hard (subpixels/tick) counts for the bounce trigger; rolling does not. */
+export const HARD_BOUNCE = SUB;
 
 function hitCharacter(p: Projectile, def: WeaponDef, chars: readonly Character[], x: number, y: number): number {
   for (const c of chars) {
@@ -222,6 +231,9 @@ function stepBodyProjectile(p: Projectile, b: Body, def: WeaponDef, t: TerrainSt
   const res = stepBody(b, t, waterY, tick, []);
   mirror(p, b);
   if (res.impactSpeed > 0) events.push({ type: 'ProjectileBounced', tick, id: p.id, speed: res.impactSpeed, x: pxOf(b.x), y: pxOf(b.y) });
+  if (def.bounceLimit > 0 && res.impactSpeed >= HARD_BOUNCE && ++p.bounces >= def.bounceLimit) {
+    return { kind: 'explode', x: pxOf(b.x), y: pxOf(b.y), hit: 'bounces', characterId: 0 };
+  }
   if (res.enteredWater) return { kind: 'splash', x: pxOf(b.x) };
   if (res.removed === 'lost') return { kind: 'lost' };
   // a walker starts walking once it touches ground it can stand on
@@ -264,6 +276,11 @@ export function stepProjectile(
   }
   const fired = triggers(p, def);
   if (fired) return fired;
+  if (p.stuck) {
+    // stays put while there is terrain to hold on to; falls again when it is blasted away
+    if (overlapsDisc(t, pxOf(p.x), pxOf(p.y), def.radius + 1)) return { kind: 'flying' };
+    p.stuck = false;
+  }
 
   const homing = def.homingDuration > 0 && p.age > def.homingDelay && p.age <= def.homingDelay + def.homingDuration;
   const boomerang = def.behavior === 'boomerang';
@@ -308,6 +325,10 @@ export function stepProjectile(
         return { kind: 'gone', caught: false };
       }
       if (def.impact) return { kind: 'explode', x: pxOf(nx), y: pxOf(ny), hit: 'terrain', characterId: 0 };
+      if (def.sticky && !p.stuck) {
+        p.stuck = true;
+        events.push({ type: 'ProjectileBounced', tick, id: p.id, speed: 0, x: pxOf(p.x), y: pxOf(p.y) });
+      }
       p.vx = 0; // remote-only projectiles stop dead against terrain
       p.vy = 0;
       break;

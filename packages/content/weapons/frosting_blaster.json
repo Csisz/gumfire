@@ -3,19 +3,46 @@
   "name": "Frosting Blaster",
   "category": "ballistic",
   "description": "A blob of boiling frosting: a small pop, then sticky burning icing that eats the ground and stings whoever stands in it.",
-  "input": { "mode": "aimCharge" },
-  "launch": { "speedMin": 1.5, "speedMax": 12, "chargeTicks": 60, "muzzleOffset": 12 },
+  "input": {
+    "mode": "aimCharge"
+  },
+  "launch": {
+    "speedMin": 1.5,
+    "speedMax": 12,
+    "chargeTicks": 60,
+    "muzzleOffset": 12
+  },
   "projectile": {
     "radius": 3,
     "gravityScale": 1,
     "windFactor": 1,
-    "triggers": [{ "kind": "impact", "ignoreOwnerTicks": 6 }],
+    "triggers": [
+      {
+        "kind": "impact",
+        "ignoreOwnerTicks": 6
+      }
+    ],
     "payload": {
-      "explosion": { "radius": 16, "damage": 15, "knockback": 0.6, "carve": true },
-      "fire": { "count": 10, "speed": 3, "lifeSeconds": 4, "damage": 3 }
+      "explosion": {
+        "radius": 16,
+        "damage": 20,
+        "knockback": 0.6,
+        "carve": true
+      },
+      "fire": {
+        "count": 12,
+        "speed": 3,
+        "lifeSeconds": 4,
+        "damage": 4
+      }
     },
     "maxLifeTicks": 1500
   },
-  "ammo": { "default": 2 },
-  "turn": { "endsTurn": true, "shotsPerTurn": 1 }
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
 }

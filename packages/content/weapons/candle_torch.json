@@ -1,0 +1,23 @@
+{
+  "id": "candle_torch",
+  "name": "Candle Torch",
+  "category": "utility",
+  "description": "Burn a tunnel ahead of you \u2014 flat, or 45\u00b0 up or down with the aim \u2014 for up to 6 s. Singes anyone in the way.",
+  "input": {
+    "mode": "instant"
+  },
+  "utility": {
+    "kind": "torch",
+    "seconds": 6,
+    "radius": 11,
+    "speed": 0.8,
+    "damage": 15
+  },
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": false,
+    "shotsPerTurn": 1
+  }
+}

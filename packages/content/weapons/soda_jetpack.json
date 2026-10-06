@@ -1,0 +1,21 @@
+{
+  "id": "soda_jetpack",
+  "name": "Soda Jetpack",
+  "category": "utility",
+  "description": "Space to blast off, \u2191 thrust, \u2190 \u2192 steer; Space again (or Enter) to cut it. 5 s of fizz \u2014 landing keeps it on, \u2191 lifts off again.",
+  "input": {
+    "mode": "instant"
+  },
+  "utility": {
+    "kind": "jetpack",
+    "fuelSeconds": 5,
+    "thrust": 0.5
+  },
+  "ammo": {
+    "default": 1
+  },
+  "turn": {
+    "endsTurn": false,
+    "shotsPerTurn": 1
+  }
+}

@@ -3,8 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GUMFIRE</title>
-    <link rel="icon" href="data:," />
+    <title>GUMFIRE — Tiny gummies. Big snacks. Sticky battles!</title>
+    <meta name="description" content="A turn-based artillery game for 2–4 players: gummy Gumlings battle across frozen snack factories, picnics, toy desks, garages and bathrooms. Hot-seat, vs CPU or online." />
+    <meta name="theme-color" content="#98e4fc" />
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="GUMFIRE" />
+    <meta property="og:description" content="Tiny gummies. Big snacks. Sticky battles! A turn-based artillery game — hot-seat, vs CPU or online." />
+    <meta property="og:image" content="og.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Patrick+Hand&display=swap" rel="stylesheet" />
@@ -55,22 +64,37 @@
       .windbar i { display: block; height: 100%; transition: width 0.4s; }
       #windL { background: linear-gradient(270deg, #3fa9f5, #9b59d0); }
       #windR { background: linear-gradient(90deg, #3fa9f5, #9b59d0); }
-      #teamsCard { position: absolute; left: 14px; bottom: 14px; padding: 8px 12px; min-width: 280px; }
-      .teamRow .name { white-space: nowrap; }
-      .teamRow { display: grid; grid-template-columns: 18px 92px 1fr 40px; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; margin: 3px 0; }
-      .teamRow .dot { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--ink); }
+      #teamsCard { position: absolute; left: 14px; bottom: 14px; padding: 8px 12px; min-width: 280px; display: flex; flex-direction: column; }
+      .teamRow .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .teamRow .side { display: inline-block; font-size: 10px; line-height: 14px; padding: 0 4px; margin-right: 3px; border-radius: 6px; background: var(--ink); color: #fff; vertical-align: 2px; }
+      .teamRow { display: grid; grid-template-columns: 18px 112px 1fr 40px; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; margin: 3px 0; }
+      .teamRow .dot { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--ink); display: grid; place-items: center; font-size: 9px; line-height: 1; color: #fff; }
       .teamRow .bar { height: 14px; border: 2.5px solid var(--ink); border-radius: 8px; background: #eee; overflow: hidden; }
       .teamRow .bar i { display: block; height: 100%; transition: width 0.8s; }
       .teamRow.active .name::before { content: '▶ '; }
-      #weaponBar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 8px; max-width: calc(100vw - 560px); flex-wrap: wrap; justify-content: center; }
-      .wtile { width: 62px; height: 62px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; display: grid; place-items: center; position: relative; cursor: pointer; transition: transform 0.08s; }
-      .wtile svg { width: 42px; height: 42px; }
+      #weaponBar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 8px 10px; align-items: center; }
+      #weaponBar .curText { display: flex; flex-direction: column; min-width: 150px; line-height: 1.1; }
+      #curName { font-weight: 700; font-size: 18px; }
+      #weaponBar .curText .hand { font-size: 14px; color: #5b5470; }
+      #curIcon { cursor: default; transform: none; box-shadow: none; }
+      button.wnav { font: 700 16px var(--display); height: 44px; min-width: 38px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; cursor: pointer; }
+      button.wnav.wide { padding: 0 12px; background: var(--cream); }
+      #weaponPanel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); padding: 10px 14px; width: 740px; max-width: calc(100vw - 28px); }
+      .wrow { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+      .wlabel { width: 104px; font-weight: 700; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; color: #5b5470; }
+      #weaponPanel .wtile { width: 54px; height: 54px; }
+      #weaponPanel .wtile svg { width: 38px; height: 38px; }
+      .wtile .lock { position: absolute; top: -9px; right: -9px; background: #ffd23f; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0 4px; line-height: 1.3; }
+      .wtile .lock:empty { display: none; }
+      #weaponDesc { margin-top: 6px; font-size: 17px; line-height: 1.25; height: 44px; overflow: hidden; }
+      .wtile { width: 56px; height: 56px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; display: grid; place-items: center; position: relative; cursor: pointer; transition: transform 0.08s; }
+      .wtile svg { width: 40px; height: 40px; }
       .wtile .ammo { position: absolute; bottom: -8px; right: -8px; background: #fff; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 12px; font-weight: 700; padding: 0 5px; line-height: 1.3; }
       .wtile .ammo:empty { display: none; }
       .wtile .key { position: absolute; top: -9px; left: -9px; background: var(--navy); color: #fff; border: 2.5px solid var(--ink); border-radius: 9px; font-size: 12px; font-weight: 700; padding: 0 5px; }
       .wtile.sel { background: var(--cream); transform: translateY(-6px); box-shadow: 0 6px 0 var(--ink); }
       .wtile.off { opacity: 0.45; cursor: default; }
-      #weaponInfo { position: absolute; bottom: 98px; left: 50%; transform: translateX(-50%); padding: 4px 14px; font-size: 18px; white-space: nowrap; }
+      #weaponInfo { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); padding: 4px 14px; font-size: 18px; white-space: nowrap; }
       #banner { position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(0.6); opacity: 0; transition: all 0.25s; font-size: 44px; font-weight: 700; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); pointer-events: none; white-space: nowrap; }
       #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
       #corner { position: absolute; top: 12px; right: 14px; display: flex; gap: 8px; }
@@ -79,7 +103,7 @@
       #help b { font-weight: 700; }
 
       /* ---------------- screens */
-      .screen { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(152, 228, 252, 0.72); backdrop-filter: blur(3px); }
+      .screen { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(152, 228, 252, 0.72); backdrop-filter: blur(3px); overflow-y: auto; padding: 16px 0; }
       .panel { padding: 22px 28px; text-align: center; max-width: 720px; width: calc(100% - 32px); }
       .logo { font-size: 84px; font-weight: 700; color: #ff5d8f; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 0 7px 0 var(--ink); letter-spacing: 0.02em; margin: 0; line-height: 1; }
       .tagline { font-size: 26px; color: var(--navy); margin: 8px 0 18px; }
@@ -88,14 +112,119 @@
       .teamCard h3 { margin: 0 0 4px; font-size: 22px; }
       .teamCard .hand { font-size: 18px; }
       .opts { display: flex; gap: 18px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 16px; font-weight: 600; }
+      .mapPick { display: flex; gap: 14px; align-items: center; justify-content: center; margin: 4px 0 14px; flex-wrap: wrap; }
+      #mapPreview { width: 340px; height: 129px; border: 3px solid var(--ink); border-radius: 14px; background: #cfeefc; image-rendering: auto; }
+      .mapOpts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; font-weight: 600; }
+      button.small { font: 700 15px var(--display); background: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 4px 12px; cursor: pointer; }
+      #mapSeed { font-size: 16px; color: #5b5470; }
       .controls { font-size: 17px; color: #4a4360; margin-top: 16px; line-height: 1.5; }
       .results h2 { font-size: 54px; margin: 6px 0; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
       table.stats { margin: 14px auto 20px; border-collapse: separate; border-spacing: 10px 4px; font-size: 18px; }
       table.stats th { font-size: 14px; letter-spacing: 0.08em; color: #5b5470; }
-      .buttons { display: flex; gap: 14px; justify-content: center; }
+      .buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+      .buttons.col { flex-direction: column; align-items: center; }
+      .buttons.col button { min-width: 260px; }
+      .menuPanel .buttons.col { gap: 12px; margin: 10px 0 8px; }
+      button.big:disabled { opacity: 0.5; cursor: default; box-shadow: 0 5px 0 rgba(26, 19, 32, 0.4); }
+      .tag { font-size: 12px; background: #ffd23f; color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; padding: 0 6px; vertical-align: middle; }
+      .panel.wide { max-width: 860px; text-align: left; }
+      .screenHead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 10px; }
+      .screenHead h2 { margin: 0; font-size: 32px; text-align: center; }
+      .screenHead > :first-child { justify-self: start; }
+      .screenHead > :last-child { justify-self: end; }
+      .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+      .slot { border: 3px solid var(--ink); border-radius: 14px; padding: 8px 10px; min-height: 92px; }
+      .slot select { width: 100%; margin-top: 4px; }
+      .slot select.ctl { font-size: 14px; }
+      .vsAi { display: flex; gap: 8px; align-items: stretch; }
+      .menuPanel { position: relative; }
+      .musicToggle { position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font: 700 22px var(--display); cursor: pointer; }
+      .musicToggle.off, #musicBtn.off { opacity: 0.4; text-decoration: line-through; }
+      #sideNote { text-align: center; min-height: 20px; font-size: 17px; }
+      .onForm { display: flex; flex-direction: column; gap: 10px; align-items: stretch; margin: 10px 0; }
+      .onForm label { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-weight: 700; }
+      .onForm input { font: inherit; border: 3px solid var(--ink); border-radius: 10px; padding: 6px 10px; width: 260px; }
+      .onJoin { display: flex; gap: 8px; }
+      .onJoin input { flex: 1; font: 700 22px var(--display); letter-spacing: 6px; text-transform: uppercase; text-align: center; border: 3px solid var(--ink); border-radius: 12px; }
+      #onError { min-height: 22px; text-align: center; font-size: 18px; }
+      .code { letter-spacing: 6px; color: var(--navy); }
+      .lobbyPlayers { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 6px 0 12px; }
+      .lobbyPlayers .lp { border: 3px solid var(--ink); border-radius: 12px; padding: 3px 10px; font-weight: 700; background: #fff; }
+      .lobbyPlayers .lp.away { opacity: 0.45; }
+      .lobbyOpts { display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+      #lobbyNote { text-align: center; font-size: 18px; margin: 8px 0; }
+      #lobby .big { display: block; margin: 0 auto; }
+      .seriesBox { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+      .seriesBox .sd { border: 3px solid var(--ink); border-radius: 12px; padding: 4px 12px; background: #fff; font-weight: 700; }
+      .seriesBox .sd.champ { background: var(--cream, #fdf1c8); }
+      .seriesBox .pips { letter-spacing: 3px; font-size: 18px; }
+      #replayBar { position: fixed; top: 108px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px 10px; z-index: 20; }
+      #replayBar button { font: 700 18px var(--display); border: 3px solid var(--ink); border-radius: 10px; background: #fff; min-width: 40px; height: 36px; cursor: pointer; }
+      #replayBar #rpInfo { font-size: 17px; min-width: 190px; text-align: center; }
+      #replayBar .rpTrack { width: 160px; height: 10px; border: 2px solid var(--ink); border-radius: 6px; overflow: hidden; background: #fff; }
+      #replayBar .rpTrack i { display: block; height: 100%; width: 0; background: var(--navy); }
+      .vsAi button { flex: 1; }
+      .vsAi select { border-radius: 12px; border: 3px solid var(--ink); font: inherit; font-weight: 700; padding: 0 8px; }
+      .slot .names { font-family: var(--hand); font-size: 15px; margin-top: 4px; line-height: 1.2; }
+      .slot .emb { font-size: 18px; }
+      .slotBtns { display: flex; gap: 10px; align-items: center; margin: 10px 0 12px; font-weight: 600; }
+      .slotBtns label { margin-left: auto; }
+      .rules { display: flex; gap: 12px; align-items: center; font-weight: 600; margin: 4px 0 8px; }
+      .rules .hand { font-weight: 400; color: #5b5470; font-size: 17px; }
+      .custom { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; margin: 6px 0 12px; font-weight: 600; font-size: 15px; }
+      .custom input { width: 64px; font: 600 15px var(--display); border: 2.5px solid var(--ink); border-radius: 9px; padding: 2px 6px; }
+      #setup #startBtn { display: block; margin: 8px auto 0; }
+      .teamTabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+      .teamTabs button { font: 700 16px var(--display); border: 3px solid var(--ink); border-radius: 12px; padding: 4px 12px; cursor: pointer; background: #fff; }
+      .teamTabs button.sel { transform: translateY(-3px); box-shadow: 0 4px 0 var(--ink); }
+      .teamEdit { display: flex; flex-direction: column; gap: 10px; font-weight: 600; }
+      .teamEdit input { font: 600 16px var(--display); border: 3px solid var(--ink); border-radius: 10px; padding: 3px 8px; }
+      .swatchRow { display: flex; align-items: center; gap: 10px; }
+      .swatchRow > span:first-child { width: 70px; }
+      .swatch { width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--ink); display: inline-grid; place-items: center; margin-right: 6px; cursor: pointer; font-size: 16px; background: #fff; vertical-align: middle; }
+      .swatch.sel { outline: 3px solid var(--ink); outline-offset: 3px; }
+      .memberGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 14px; }
+      .memberGrid input { width: 120px; }
+      .memberGrid select { font-size: 14px; }
+      .optGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; font-weight: 600; }
+      .optGrid .span2 { grid-column: span 2; }
+      .optGrid input[type='checkbox'] { width: 18px; height: 18px; vertical-align: middle; }
+      .keysHead { margin: 16px 0 8px; }
+      .keysHead .hand { font-weight: 400; font-size: 16px; color: #5b5470; }
+      .keyGrid { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 6px 12px; align-items: center; }
+      .keyGrid button { font: 700 15px var(--display); min-width: 96px; border: 3px solid var(--ink); border-radius: 10px; background: var(--cream); padding: 3px 8px; cursor: pointer; }
+      .keyGrid button.wait { background: #ffd23f; }
+      #ticker { position: absolute; top: 116px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+      #ticker div { background: rgba(255, 255, 255, 0.92); border: 2.5px solid var(--ink); border-radius: 12px; padding: 2px 12px; font-family: var(--hand); font-size: 18px; transition: opacity 0.6s; white-space: nowrap; }
+      .awards { display: flex; gap: 12px; justify-content: center; margin: 4px 0 16px; flex-wrap: wrap; }
+      .award { border: 3px solid var(--ink); border-radius: 14px; padding: 6px 12px; min-width: 170px; background: var(--cream); }
+      .award b { display: block; font-size: 13px; letter-spacing: 0.08em; color: #5b5470; }
+      .award span { font-family: var(--hand); font-size: 18px; }
+      body.text0 #hud { zoom: 0.85; }
+      body.text2 #hud { zoom: 1.2; }
+      .pauseMenu { max-width: 420px; }
+      .pauseMenu h2 { font-size: 44px; margin: 8px 0 18px; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+      .pauseHint { margin-top: 16px; font-size: 16px; color: #5b5470; }
       #loading { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 18px; }
-      #error { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); color: #fff; background: #e8364f; border-radius: 10px; padding: 6px 12px; }
-      @media (max-width: 760px) { .logo { font-size: 56px; } .setup { grid-template-columns: 1fr; } #weaponBar { bottom: 110px; } #teamsCard { min-width: 0; } }
+      #error { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); color: #fff; background: #e8364f; border-radius: 10px; padding: 6px 12px; z-index: 50; max-width: calc(100% - 32px); }
+      #error a { color: #fff; font-weight: 700; margin-left: 8px; }
+
+      /* ---------------- title (M20): the themes' painted rooms drift by behind the menu */
+      #title { background: none; backdrop-filter: none; }
+      #titleBg { position: fixed; inset: 0; overflow: hidden; background: var(--page); }
+      #titleBg i { position: absolute; inset: -4%; background-size: cover; background-position: center; opacity: 0; transition: opacity 1.6s ease; }
+      #titleBg i.on { opacity: 1; animation: drift 11s ease-in-out both; }
+      #titleBg::before { content: ''; position: absolute; inset: 0;  z-index: 1; background: radial-gradient(ellipse at center, rgba(152, 228, 252, 0.35), rgba(152, 228, 252, 0.05) 70%); }
+      @keyframes drift { from { transform: scale(1.02) translateX(-1.2%); } to { transform: scale(1.09) translateX(1.2%); } }
+      #title .menuPanel { z-index: 1; background: rgba(255, 255, 255, 0.92); }
+      #titlePlace { position: absolute; left: 14px; bottom: 12px; z-index: 2; font: 600 15px var(--display); color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+      .titleFoot { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: #7a7290; }
+      #about .panel { max-width: 560px; text-align: left; }
+      #about h2 { text-align: center; margin: 0 0 10px; }
+      #about p { margin: 8px 0; line-height: 1.45; }
+      #about .center { text-align: center; margin-top: 14px; }
+      @media (prefers-reduced-motion: reduce) { #titleBg i.on { animation: none; } }
+      @media (max-width: 760px) { .logo { font-size: 56px; } .setup { grid-template-columns: 1fr; } .slots, .custom { grid-template-columns: 1fr 1fr; } .memberGrid, .optGrid { grid-template-columns: 1fr; } #weaponBar { bottom: 110px; } #teamsCard { min-width: 0; } }
     </style>
   </head>
   <body>
@@ -108,39 +237,142 @@
         <div id="timer">45</div>
       </div>
       <div id="roundLine" class="hand"></div>
-      <div id="corner"><button id="followBtn" title="Follow (F)">◎</button><button id="muteBtn" title="Sound (M)">♪</button><button id="helpBtn" title="Controls (H)">?</button></div>
+      <div id="corner"><button id="pauseBtn" title="Menu (Esc)">☰</button><button id="followBtn" title="Follow (F)">◎</button><button id="muteBtn" title="Sound (M)">♪</button><button id="musicBtn" title="Music on / off (N)">♫</button><button id="helpBtn" title="Controls (H)">?</button></div>
       <div id="help" class="card hidden">
         <b>Move</b> ← → · <b>Aim</b> ↑ ↓ · <b>Jump</b> Enter (×2 backflip)<br />
-        <b>Fire</b> hold Space, release · <b>Weapons</b> Q / E or click<br />
-        <b>Target</b> click the map (strike, homing) · <b>Detonate</b> Space again (cookie)<br />
+        <b>Fire</b> hold Space, release · <b>Weapons</b> Q / E, Tab or right-click<br />
+        <b>Target</b> click the map (strike, homing, teleport, bridge) · <b>Detonate</b> Space again (cookie)<br />
+        <b>Bridge</b> ↑ ↓ tilts · <b>Jetpack</b> ↑ thrust, ← → steer · <b>Umbrella</b> Space while falling<br />
+        <b>Rope</b> Space shoots · ← → swing · ↑ ↓ reel · Space / Enter lets go · Space again in the air re-shoots<br />
+        <b>From the rope / jetpack</b> pick a weapon: ↑ ↓ aim, Space fires · Enter lets go / stops<br />
         <b>Grenade</b> fuse 1–5 · bounce B · <b>End retreat</b> Backspace<br />
-        <b>Camera</b> drag · wheel zoom · F follow · <b>Sound</b> M
+        <b>Camera</b> drag · wheel zoom · F follow · <b>Sound</b> M · <b>Menu</b> Esc
       </div>
       <div id="teamsCard" class="card"></div>
       <div id="weaponInfo" class="card hand hidden"></div>
-      <div id="weaponBar" class="card"></div>
+      <div id="weaponBar" class="card">
+        <button id="prevW" class="wnav" title="Previous weapon (Q)">◀</button>
+        <div id="curIcon" class="wtile sel"></div>
+        <div class="curText"><span id="curName">—</span><span class="hand">Tab or right-click: all weapons</span></div>
+        <button id="nextW" class="wnav" title="Next weapon (E)">▶</button>
+        <button id="panelBtn" class="wnav wide" title="All weapons (Tab)">All ▲</button>
+      </div>
+      <div id="weaponPanel" class="card hidden"><div id="weaponRows"></div><div id="weaponDesc" class="hand"></div></div>
       <div id="windCard" class="card">
         <div class="lbl" id="windLbl">WIND</div>
         <div class="windbar"><div id="windLeft"><i id="windL" style="width: 0"></i></div><div><i id="windR" style="width: 0"></i></div></div>
       </div>
       <div id="banner"></div>
+      <div id="ticker"></div>
     </div>
 
+    <div id="titleBg" class="hidden" aria-hidden="true"><i></i><i></i><span id="titlePlace"></span></div>
     <div id="title" class="screen">
-      <div class="panel card">
+      <div class="panel card menuPanel">
+        <button id="titleMusic" class="musicToggle" title="Background music on / off">♫</button>
         <h1 class="logo">GUMFIRE</h1>
         <div class="tagline hand">Tiny gummies. Big snacks. Sticky battles!</div>
-        <div class="setup">
-          <div class="teamCard" style="background: var(--mint)"><h3>Mint Team</h3><div class="hand">Pip · Zippy · Mochi · Bolt</div></div>
-          <div class="teamCard" style="background: var(--cherry)"><h3>Cherry Team</h3><div class="hand">Rex · Nib · Tuck · Jojo</div></div>
+        <div class="buttons col">
+          <button id="goSetup" class="big">Hot-seat match</button>
+          <div class="vsAi"><button id="goAi" class="big">Quick match vs CPU</button><select id="aiLevel" title="How good the CPU is"><option value="easy">easy</option><option value="normal">normal</option><option value="hard">hard</option></select></div>
+          <button id="goOnline" class="big alt">Online</button>
+          <button id="goReplay" class="big alt">Watch a replay</button><input id="replayFile" type="file" accept=".json,.gumfire" class="hidden" />
+          <button id="goTeams" class="big alt">Team editor</button>
+          <button id="goOptions" class="big alt">Options</button>
         </div>
-        <div class="opts">
-          <label>Gumlings <select id="optSize"><option>2</option><option>3</option><option selected>4</option></select></label>
-          <label>Turn <select id="optTurn"><option value="30">30 s</option><option value="45" selected>45 s</option><option value="60">60 s</option></select></label>
-          <label>Round <select id="optRound"><option value="300">5 min</option><option value="600" selected>10 min</option><option value="900">15 min</option></select></label>
+        <div class="controls hand">Two to four players, one keyboard — pass it over when the turn changes. Or take on the CPU (any team can be a CPU in the match setup).</div>
+        <div class="titleFoot"><span id="version"></span><button id="goAbout" class="small">About</button></div>
+      </div>
+    </div>
+
+    <div id="about" class="screen hidden">
+      <div class="panel card">
+        <h2>About GUMFIRE</h2>
+        <p>A turn-based artillery game for two to four players: gummy Gumlings battle with pepper rockets, popcorn bombs and rolling pins across a frozen snack factory, a garden picnic, a toy desk, a garage and a bathroom — hot-seat on one keyboard, against the CPU, or online.</p>
+        <p><b>Controls</b> — ← → walk · ↑ ↓ aim · Enter jump · Space hold to charge, release to fire · Tab weapons · 1–5 fuse · H all keys in a match.</p>
+        <p><b>Made by</b> Viktor. Painted art generated with Higgsfield and cut out for the game; music and sounds are made live in your browser; built with Claude.</p>
+        <p class="hand" id="aboutBuild"></p>
+        <div class="center"><button id="aboutBack" class="big alt">Back</button></div>
+      </div>
+    </div>
+
+    <div id="setup" class="screen hidden">
+      <div class="panel card wide">
+        <div class="screenHead"><button id="setupBack" class="small">← Back</button><h2>Match setup</h2><span></span></div>
+        <div class="slots" id="teamSlots"></div>
+        <div class="slotBtns"><button id="addTeam" class="small">+ team</button><button id="removeTeam" class="small">− team</button><label>Gumlings each <select id="optSize"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></label></div>
+        <div class="mapPick">
+          <canvas id="mapPreview" width="500" height="190"></canvas>
+          <div class="mapOpts">
+            <label>Map <select id="optMap"><option value="objects" selected>Built from the theme</option><option value="island">Random island</option><option value="cavern">Random cavern</option><option value="slice">Slice Island (handmade)</option></select></label>
+            <label>Theme <select id="optTheme"><option value="frozen">Frozen Snack Factory</option><option value="picnic">Garden Picnic</option></select></label>
+            <button id="reseedBtn" class="small">New map ↻</button>
+            <span id="mapSeed" class="hand"></span>
+          </div>
         </div>
-        <button id="startBtn" class="big">Play hot-seat!</button>
-        <div class="controls hand">Two players, one keyboard — pass it over when the turn changes.<br />← → walk · ↑ ↓ aim · hold Space to throw · Enter jump · Q / E weapons</div>
+        <div class="rules">
+          <label>Rules <select id="optPreset"></select></label>
+          <span id="presetBlurb" class="hand"></span>
+          <label>Series <select id="optSeries"><option value="1">single match</option><option value="3">best of 3</option><option value="5">best of 5</option></select></label>
+        </div>
+        <div class="hand" id="sideNote"></div>
+        <div class="custom hidden" id="customRules">
+          <label>Turn <input id="cTurn" type="number" min="10" max="120" step="5" /> s</label>
+          <label>Round <input id="cRound" type="number" min="1" max="60" step="1" /> min</label>
+          <label>Retreat <input id="cRetreat" type="number" min="0" max="10" step="1" /> s</label>
+          <label>Health <input id="cHp" type="number" min="10" max="300" step="10" /></label>
+          <label>Mines <input id="cMines" type="number" min="0" max="30" /></label>
+          <label>Kegs <input id="cBarrels" type="number" min="0" max="30" /></label>
+          <label>Crates <input id="cCrates" type="number" min="0" max="100" step="5" /> %</label>
+          <label>Sudden death <select id="cSudden"><option value="both">water + 1 hp</option><option value="water">rising water</option><option value="hpToOne">everyone to 1 hp</option><option value="roundEnds">most hp wins</option></select></label>
+        </div>
+        <button id="startBtn" class="big">Play!</button>
+      </div>
+    </div>
+
+    <div id="teamsScreen" class="screen hidden">
+      <div class="panel card wide">
+        <div class="screenHead"><button id="teamsBack" class="small">← Back</button><h2>Team editor</h2><button id="teamsReset" class="small">Reset</button></div>
+        <div class="teamTabs" id="teamTabs"></div>
+        <div class="teamEdit">
+          <label>Name <input id="teamName" maxlength="16" /></label>
+          <div class="swatchRow"><span>Colour</span><span id="teamColours"></span></div>
+          <div class="swatchRow"><span>Emblem</span><span id="teamEmblems"></span></div>
+          <div class="memberGrid" id="teamMembers"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="optionsScreen" class="screen hidden">
+      <div class="panel card wide">
+        <div class="screenHead"><button id="optionsBack" class="small">← Back</button><h2>Options</h2><button id="optionsReset" class="small">Defaults</button></div>
+        <div class="optGrid">
+          <label>Sound effects <input id="oVolume" type="range" min="0" max="100" /></label>
+          <label>Music <input id="oMusic" type="range" min="0" max="100" /></label>
+          <label><input id="oMuted" type="checkbox" /> Mute</label>
+          <label><input id="oShake" type="checkbox" /> Screen shake</label>
+          <label><input id="oFlash" type="checkbox" /> Hit flashes</label>
+          <label>Text size <select id="oText"><option value="0">small</option><option value="1">normal</option><option value="2">large</option></select></label>
+          <label><input id="oColourBlind" type="checkbox" /> Colour-blind team colours</label>
+          <label class="span2"><input id="oHoldToggle" type="checkbox" /> Tap Fire to start charging, tap again to throw (no holding)</label>
+        </div>
+        <h3 class="keysHead">Keys <span class="hand">click a key, then press the new one · Esc cancels</span></h3>
+        <div class="keyGrid" id="keyGrid"></div>
+      </div>
+    </div>
+
+    <div id="pause" class="screen hidden">
+      <div class="panel card pauseMenu">
+        <span class="pill">PAUSED</span>
+        <h2>Time out!</h2>
+        <div class="buttons col">
+          <button id="resumeBtn" class="big">Resume</button>
+          <button id="pauseMusic" class="big alt">Music: on</button>
+          <button id="instantBtn" class="big alt">Replay last turn</button>
+          <button id="restartBtn" class="big alt">Restart match</button>
+          <button id="quitBtn" class="big alt">Quit to title</button>
+        </div>
+        <div class="hand pauseHint">Esc — back to the game · Restart keeps the map and the settings</div>
       </div>
     </div>
 
@@ -149,11 +381,53 @@
         <span class="pill" id="resPill">RESULT</span>
         <h2 id="resTitle">Mint wins!</h2>
         <div class="hand" id="resSub" style="font-size: 22px"></div>
+        <div class="awards" id="resAwards"></div>
+        <div class="seriesBox hidden" id="resSeries"></div>
         <table class="stats" id="resTable"></table>
-        <div class="buttons"><button id="rematchBtn" class="big">Rematch</button><button id="menuBtn" class="big alt">Menu</button></div>
+        <div class="buttons"><button id="rematchBtn" class="big">Rematch</button><button id="watchBtn" class="big alt">Watch replay</button><button id="saveReplayBtn" class="big alt">Save replay</button><button id="menuBtn" class="big alt">Menu</button></div>
       </div>
     </div>
 
+    <div id="onlineScreen" class="screen hidden">
+      <div class="panel card menuPanel">
+        <div class="screenHead"><button id="onlineBack" class="small">← Back</button><h2>Play online</h2><span></span></div>
+        <div class="onForm">
+          <label>Your name <input id="onName" maxlength="16" placeholder="Player" /></label>
+          <label>Server <input id="onServer" /></label>
+          <button id="onCreate" class="big">Create a room</button>
+          <div class="onJoin"><input id="onCode" maxlength="4" placeholder="CODE" /><button id="onJoin" class="big alt">Join</button></div>
+          <div id="onError" class="hand"></div>
+        </div>
+        <div class="controls hand">Create a room and send the four-letter code to your friends. Everyone needs the same GUMFIRE server (see the README: Online).</div>
+      </div>
+    </div>
+
+    <div id="lobby" class="screen hidden">
+      <div class="panel card wide">
+        <div class="screenHead"><button id="lobbyLeave" class="small">← Leave</button><h2>Room <span id="lobbyCode" class="code">····</span></h2><span></span></div>
+        <div id="lobbyPlayers" class="lobbyPlayers"></div>
+        <div class="slots" id="lobbySlots"></div>
+        <div id="lobbyHostOpts" class="lobbyOpts">
+          <label>Map <select id="lbMap"><option value="objects">Built from the theme</option><option value="island">Random island</option><option value="cavern">Random cavern</option><option value="slice">Slice Island (handmade)</option></select></label>
+          <label>Theme <select id="lbTheme"><option value="frozen">Frozen Snack Factory</option><option value="picnic">Garden Picnic</option></select></label>
+          <button id="lbReseed" class="small">New map ↻</button>
+        </div>
+        <div id="lobbyNote" class="hand"></div>
+        <button id="lobbyStart" class="big">Start!</button>
+      </div>
+    </div>
+
+    <div id="replayBar" class="card hidden">
+      <span class="pill">REPLAY</span>
+      <button id="rpRestart" title="From the start">⏮</button>
+      <button id="rpPrev" title="Previous turn">⏪</button>
+      <button id="rpPlay" title="Play / pause (Space)">⏸</button>
+      <button id="rpNext" title="Next turn">⏩</button>
+      <button id="rpSpeed" title="Speed">1×</button>
+      <span id="rpInfo" class="hand"></span>
+      <span class="rpTrack"><i id="rpPos"></i></span>
+      <button id="rpExit" title="Leave the replay (Esc)">✕</button>
+    </div>
     <div id="loading" class="hand hidden">Loading…</div>
     <div id="error" class="hidden"></div>
     <script type="module" src="/src/main.ts"></script>

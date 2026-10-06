@@ -1,0 +1,24 @@
+{
+  "id": "whisk_uppercut",
+  "name": "Whisk Uppercut",
+  "category": "melee",
+  "description": "A rising whisk punch that sends the target sky-high \u2014 and you a little way up with it.",
+  "input": {
+    "mode": "instant"
+  },
+  "melee": {
+    "reach": 18,
+    "arcDegrees": 160,
+    "damage": 30,
+    "impulse": 10,
+    "angleDegrees": 72,
+    "selfLift": 5
+  },
+  "ammo": {
+    "default": "inf"
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

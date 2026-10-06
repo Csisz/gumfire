@@ -1,0 +1,48 @@
+{
+  "id": "cherry_bomb",
+  "name": "Cherry Bomb",
+  "category": "ballistic",
+  "description": "Dropped at your feet with a 5 s fuse. A huge bang \u2014 run!",
+  "input": {
+    "mode": "instant"
+  },
+  "launch": {
+    "speedMin": 0,
+    "speedMax": 0,
+    "chargeTicks": 1,
+    "muzzleOffset": 0
+  },
+  "projectile": {
+    "radius": 5,
+    "gravityScale": 1,
+    "windFactor": 0,
+    "triggers": [
+      {
+        "kind": "fuse",
+        "defaultSeconds": 5
+      }
+    ],
+    "bounce": {
+      "low": 0.2,
+      "high": 0.2,
+      "friction": 0.6
+    },
+    "payload": {
+      "explosion": {
+        "radius": 70,
+        "damage": 70,
+        "knockback": 1.2,
+        "carve": true
+      }
+    },
+    "maxLifeTicks": 1000
+  },
+  "ammo": {
+    "default": 1
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1,
+    "delayTurns": 1
+  }
+}

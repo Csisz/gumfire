@@ -22,6 +22,10 @@ export interface TeamState {
   next: number;
   /** Ammo per weapon index (−1 = unlimited); filled from the weapon set at match creation. */
   ammo: number[];
+  /** Turns this team has started (weapon delays count them). */
+  turns: number;
+  /** Alliance (M16): teams on the same side win together; default = own id (free-for-all). */
+  side: number;
 }
 
 export interface MatchState {
@@ -47,7 +51,8 @@ export interface MatchState {
   shotsFired: number;
   /** A remote-triggered weapon is out: the retreat starts when it has gone off. */
   remoteWait: boolean;
-  /** 'none' while playing; the winning team id is in `winner`. */
+  /** 'none' while playing; the winning team id is in `winner` (with alliances: the winning
+   *  side's lowest-id living team — its allies won too). */
   result: 'none' | 'win' | 'draw';
   winner: number;
 }
@@ -58,6 +63,8 @@ export interface TeamConfig {
   size?: number;
   /** Manual placement (whole px, character centre); overrides random placement. */
   spawns?: Array<{ x: number; y: number }>;
+  /** Alliance 0..5 (M16); teams sharing a side win together. Default: the team's own index. */
+  side?: number;
 }
 
 export interface MatchConfig {
@@ -126,7 +133,12 @@ export function setupMatch(
   const total = sizes.reduce((a, b) => a + b, 0);
   if (total > MAX_CHARACTERS) throw new MatchConfigError(`too many characters (${total} > ${MAX_CHARACTERS})`);
 
-  const teams: TeamState[] = cfg.teams.map((tc, i) => ({ id: i, name: String(tc.name).slice(0, 24), characterIds: [], next: 0, ammo: [] }));
+  const teams: TeamState[] = cfg.teams.map((tc, i) => {
+    const side = tc.side ?? i;
+    if (!Number.isInteger(side) || side < 0 || side > 5) throw new MatchConfigError(`team "${tc.name}": side must be 0..5 (got ${side})`);
+    return { id: i, name: String(tc.name).slice(0, 24), characterIds: [], next: 0, ammo: [], turns: 0, side };
+  });
+  if (new Set(teams.map((tm) => tm.side)).size < 2) throw new MatchConfigError('a match needs at least two sides');
   const characters: Character[] = [];
   const taken: Array<{ x: number; y: number }> = [];
   let id = firstId;
@@ -150,11 +162,12 @@ export function setupMatch(
       teams[ti]!.characterIds.push(c.id);
     }
   }
-  const order = teams.map((tm) => tm.id);
-  for (let i = order.length - 1; i > 0; i--) {
+  const shuffled = teams.map((tm) => tm.id);
+  for (let i = shuffled.length - 1; i > 0; i--) {
     const j = nextInt(rng, i + 1);
-    [order[i], order[j]] = [order[j]!, order[i]!];
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
   }
+  const order = interleaveSides(shuffled, teams);
   const match: MatchState = {
     ruleset,
     teams,
@@ -176,7 +189,45 @@ export function setupMatch(
   return { match, characters };
 }
 
+/**
+ * Turn rotation with alliances: sides take turns (A, B, A, B…), each side's teams in their
+ * shuffled order. Free-for-all (every side different) keeps the shuffled order as it is.
+ */
+export function interleaveSides(shuffled: readonly number[], teams: readonly TeamState[]): number[] {
+  const sides: number[] = [];
+  const bySide = new Map<number, number[]>();
+  for (const id of shuffled) {
+    const side = teams[id]!.side;
+    if (!bySide.has(side)) {
+      bySide.set(side, []);
+      sides.push(side);
+    }
+    bySide.get(side)!.push(id);
+  }
+  const order: number[] = [];
+  for (let round = 0; order.length < shuffled.length; round++) {
+    for (const side of sides) {
+      const list = bySide.get(side)!;
+      if (round < list.length) order.push(list[round]!);
+    }
+  }
+  return order;
+}
+
 export const isAlive = (c: Character) => c.state !== 'dead';
+
+/** Sides that still have a living character, ascending. */
+export function livingSides(match: MatchState, chars: readonly Character[]): number[] {
+  const sides = new Set<number>();
+  for (const id of livingTeams(match, chars)) sides.add(match.teams[id]!.side);
+  return [...sides].sort((a, b) => a - b);
+}
+
+/** Are these two teams on the same side? */
+export function allied(match: MatchState | null, a: number, b: number): boolean {
+  if (!match) return a === b;
+  return a === b || match.teams[a]?.side === match.teams[b]?.side;
+}
 
 /** Team ids that still have a living character, in id order. */
 export function livingTeams(match: MatchState, chars: readonly Character[]): number[] {

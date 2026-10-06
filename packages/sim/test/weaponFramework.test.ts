@@ -217,9 +217,9 @@ describe('payload: fire (Frosting Blaster)', () => {
       const at = ofType(ev, 'ProjectileImpact')[0];
       if (at && Math.abs(at.x - 900) > 26 && Math.abs(at.x - 900) < 40) {
         until(t, ev, quiet, 600);
-        expect(ofType(ev, 'FiresSpawned')).toEqual([expect.objectContaining({ count: 10 })]);
+        expect(ofType(ev, 'FiresSpawned')).toEqual([expect.objectContaining({ count: 12 })]);
         expect(ev.some((e) => e.type === 'TerrainChanged' && e.cause === 'fire')).toBe(true);
-        const burns = ofType(ev, 'CharacterHit').filter((h) => h.id === 2 && h.damage === 3);
+        const burns = ofType(ev, 'CharacterHit').filter((h) => h.id === 2 && h.damage === 4);
         expect(burns.length).toBeGreaterThan(3); // several pulses, one per pulse (not per flame)
         const pulses = new Set(burns.map((b) => b.tick));
         expect(pulses.size).toBe(burns.length);
@@ -238,7 +238,7 @@ describe('behaviour: boomerang (Boomerang Trowel)', () => {
     const ev = run(s, [...repeat(Btn.Fire, 25), 0]);
     until(s, ev, (x) => x.projectiles.length === 0, 600);
     expect(ofType(ev, 'ProjectileStruck').map((e) => e.characterId)).toEqual([2]);
-    expect(ofType(ev, 'CharacterHit')).toEqual([expect.objectContaining({ id: 2, damage: 25 })]);
+    expect(ofType(ev, 'CharacterHit')).toEqual([expect.objectContaining({ id: 2, damage: 30 })]);
     expect(ofType(ev, 'ProjectileCaught')).toEqual([expect.objectContaining({ by: 1 })]);
     expect(ofType(ev, 'Exploded')).toHaveLength(0);
   });

@@ -11,7 +11,10 @@ import { stepFires } from './environment/fire.js';
 import { blastObjects, stepObjects, wakeObjectsInRect, type ObjectWorld } from './environment/objects.js';
 import { blastBodies, blastCharacters, type Explosion } from './explosions/explosion.js';
 import { stepSettle } from './explosions/resolve.js';
-import { ammoLeft, controlOf, liveRemote, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, spendAmmo, stepTurn } from './turn/turn.js';
+import { ammoLeft, controlOf, delayLeft, liveRemote, maskInput, maySelectWeapon, onShotFired, selectNextInTeam, skipTurn, spendAmmo, stepTurn } from './turn/turn.js';
+import { deployObject, stepGear, stepTool, useUtility, type TerrainEditFn } from './weapons/utility.js';
+import { airCharge, shootHead, stepHead, stepRope } from './weapons/rope.js';
+import type { WeaponDef } from './weapons/definition.js';
 import { nextInt } from './core/rng.js';
 import type { GameState } from './state/gameState.js';
 import { addRect, carveCapsule, carveCircle, type EditRect } from './terrain/edit.js';
@@ -99,22 +102,57 @@ function syncObjectWorld(s: GameState, w: ObjectWorld): void {
 }
 
 /** A crate was touched: heal the Gumling, or give its team ammo for a limited weapon. */
-function pickup(s: GameState, o: { id: number }, def: { heal: number; ammo: number }, c: GameState['characters'][0], events: SimEvent[]): void {
+function pickup(s: GameState, o: { id: number }, def: { heal: number; ammo: number; utility: boolean }, c: GameState['characters'][0], events: SimEvent[]): void {
   if (def.heal > 0) {
     c.hp = Math.min(999, c.hp + def.heal);
     events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind: 'health', amount: def.heal, weapon: -1 });
     return;
   }
   const team = s.match?.teams[c.team];
-  const limited = s.weapons.map((w, i) => (!w.hidden && w.ammo >= 0 ? i : -1)).filter((i) => i >= 0);
+  const kind = def.utility ? 'utility' : 'weapon';
+  const limited = s.weapons.map((w, i) => (!w.hidden && w.ammo >= 0 && (w.category === 'utility') === def.utility ? i : -1)).filter((i) => i >= 0);
   if (!team || limited.length === 0) {
-    events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind: 'weapon', amount: 0, weapon: -1 });
+    events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind, amount: 0, weapon: -1 });
     return;
   }
   const w = limited[nextInt(s.rng.crates, limited.length)]!;
   team.ammo[w] = (team.ammo[w] ?? 0) + def.ammo;
-  events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind: 'weapon', amount: def.ammo, weapon: w });
+  events.push({ type: 'CrateCollected', tick: s.tick, id: o.id, by: c.id, kind, amount: def.ammo, weapon: w });
   events.push({ type: 'AmmoChanged', tick: s.tick, team: team.id, weapon: w, ammo: team.ammo[w]! });
+}
+
+/**
+ * The selected weapon goes off: utilities and deployables first (they may refuse, costing
+ * nothing), then ammo, then the delivery. `fromAir`: used from the rope or jetpack (longer retreat).
+ */
+function useWeapon(state: GameState, c: GameState['characters'][0], weapon: WeaponDef, power: number, edit: TerrainEditFn, events: SimEvent[], fromAir: boolean): void {
+  if (weapon.category === 'utility') {
+    if (!useUtility(state, c, c.weapon, weapon, edit, events)) return;
+    spendAmmo(state, c, events);
+    onShotFired(state, weapon, events);
+    if (weapon.utility === 'skip') skipTurn(state, events);
+    return;
+  }
+  if (weapon.category === 'deploy') {
+    if (!deployObject(state, c, weapon, events)) return;
+    spendAmmo(state, c, events);
+    onShotFired(state, weapon, events, fromAir);
+    return;
+  }
+  spendAmmo(state, c, events);
+  if (weapon.category === 'melee') {
+    meleeSwing(c, c.weapon, weapon, state.characters, state.tick, events);
+  } else if (weapon.category === 'hitscan') {
+    fireHitscan(state, c, c.weapon, weapon, events);
+  } else if (weapon.category === 'strike') {
+    callStrike(state, c, c.weapon, weapon, events);
+  } else if (state.projectiles.length < MAX_PROJECTILES) {
+    const id = state.nextProjectileId++;
+    const p = makeProjectile(id, c.weapon, weapon, c, power);
+    state.projectiles.push(p);
+    events.push({ type: 'ProjectileFired', tick: state.tick, id, weapon: c.weapon, owner: c.id, power, speed: ilength(p.vx, p.vy), x: p.x >> 8, y: p.y >> 8 });
+  } else return;
+  onShotFired(state, weapon, events, fromAir);
 }
 
 function terrainEdit(state: GameState, r: EditRect | null, cause: 'carve' | 'tunnel' | 'girder' | 'explosion' | 'fire', events: SimEvent[]): void {
@@ -157,32 +195,50 @@ export function step(state: GameState, rawInput: InputFrame, commands: readonly 
   // 3. character controller (+ airborne characters' physics). Only the controlled character
   //    receives input; the others idle, fall, land and drown on their own.
   if (state.terrain) {
+    const edit: TerrainEditFn = (r, cause) => terrainEdit(state, r, cause, events);
     for (const c of state.characters) {
       const controlled = control.id !== 0 && c.id === control.id;
-      // out of ammo: the weapon cannot fire (aiming still works)
-      const weapon = controlled && ammoLeft(state, c.id, c.weapon) === 0 ? null : (state.weapons[c.weapon] ?? null);
-      const power = stepCharacter(c, state.terrain, state.waterY, state.tick, controlled, charInput, charPrev, events, weapon);
-      if (power < 0 || !weapon) continue;
-      spendAmmo(state, c, events);
-      if (weapon.category === 'melee') {
-        meleeSwing(c, c.weapon, weapon, state.characters, state.tick, events);
-        onShotFired(state, weapon, events);
-      } else if (weapon.category === 'hitscan') {
-        fireHitscan(state, c, c.weapon, weapon, events);
-        onShotFired(state, weapon, events);
-      } else if (weapon.category === 'strike') {
-        callStrike(state, c, c.weapon, weapon, events);
-        onShotFired(state, weapon, events);
-      } else if (state.projectiles.length < MAX_PROJECTILES) {
-        const id = state.nextProjectileId++;
-        const p = makeProjectile(id, c.weapon, weapon, c, power);
-        state.projectiles.push(p);
-        events.push({ type: 'ProjectileFired', tick: state.tick, id, weapon: c.weapon, owner: c.id, power, speed: ilength(p.vx, p.vy), x: p.x >> 8, y: p.y >> 8 });
-        onShotFired(state, weapon, events);
+      // out of ammo or still delayed: the weapon cannot fire (aiming still works)
+      const usable = !controlled || (ammoLeft(state, c.id, c.weapon) !== 0 && delayLeft(state, c.id, c.weapon) === 0);
+      const weapon = usable ? (state.weapons[c.weapon] ?? null) : null;
+      if (c.state === 'tool') {
+        stepTool(state, c, controlled, charInput, charPrev, edit, events);
+        continue;
       }
+      // 4. grapple: a flying head bites; a Gumling on the rope swings (and may shoot from it)
+      if (c.headOn && stepHead(state, c, events) === 'first') {
+        spendAmmo(state, c, events);
+        events.push({ type: 'UtilityUsed', tick: state.tick, id: c.id, weapon: c.ropeWeapon, kind: 'rope', x: c.body.x >> 8, y: c.body.y >> 8 });
+      }
+      if (c.state === 'rope') {
+        const power = stepRope(state, c, controlled, charInput, charPrev, weapon, events);
+        if (power >= 0 && weapon) useWeapon(state, c, weapon, power, edit, events, true);
+        continue;
+      }
+      // re-shots during a rope use need no ammo (the use already paid)
+      const held = state.weapons[c.weapon];
+      const rope = held?.utility === 'rope' && (weapon || c.ropeOn) ? held : null;
+      if (controlled && rope && pressed(charPrev, charInput, Btn.Fire) && (c.state === 'idle' || c.state === 'walk' || c.state === 'air' || c.state === 'landing')) {
+        shootHead(state, c, c.weapon, rope, events);
+      }
+      // worn gear (parachute, jetpack) reacts to Fire itself, in the air too
+      const gear = weapon && (weapon.utility === 'parachute' || weapon.utility === 'jetpack') ? weapon : null;
+      if (c.state !== 'dead' && (c.chute || c.jet || (controlled && gear))) {
+        if (stepGear(state, c, controlled, charInput, charPrev, controlled ? gear : null, c.weapon, events)) {
+          spendAmmo(state, c, events);
+          onShotFired(state, gear!, events);
+        }
+      }
+      // a weapon from the jetpack (the jetpack itself is not in hand)
+      if (controlled && c.jet && c.state === 'air' && weapon && !gear && !rope && weapon.usableFromRope) {
+        const p = airCharge(c, weapon, charInput, charPrev);
+        if (p >= 0) useWeapon(state, c, weapon, p, edit, events, true);
+      }
+      const power = stepCharacter(c, state.terrain, state.waterY, state.tick, controlled, charInput, charPrev, events, gear || rope ? null : weapon);
+      if (power < 0 || !weapon) continue;
+      useWeapon(state, c, weapon, power, edit, events, false);
     }
   }
-  // 4. rope (M13)
   // 5. projectiles + 6. triggers (impact)
   if (state.terrain && state.projectiles.length > 0) stepProjectiles(state, events);
   // 7. explosions
@@ -249,7 +305,7 @@ function applyCommand(state: GameState, cmd: SimCommand, events: SimEvent[]): vo
   }
   if (cmd.type === 'selectWeapon') {
     const c = state.characters.find((x) => x.id === state.activeCharacter);
-    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && !state.weapons[cmd.index]!.hidden && ammoLeft(state, c.id, cmd.index) !== 0 && c.state !== 'charging' && c.weapon !== cmd.index) {
+    if (c && maySelectWeapon(state) && cmd.index < state.weapons.length && !state.weapons[cmd.index]!.hidden && ammoLeft(state, c.id, cmd.index) !== 0 && delayLeft(state, c.id, cmd.index) === 0 && c.state !== 'charging' && c.state !== 'tool' && c.weapon !== cmd.index) {
       c.weapon = cmd.index;
       c.hasTarget = false;
       events.push({ type: 'WeaponSelected', tick: state.tick, id: c.id, weapon: cmd.index });

@@ -13,6 +13,11 @@ export interface CameraOptions {
   topMargin?: number;
   /** World px allowed below the map bottom. */
   bottomMargin?: number;
+  /**
+   * Never zoom out further than the map (plus side margins) fills the view's width — wider
+   * screens otherwise see past the water and the backdrop (M10 playtest).
+   */
+  fillWidth?: boolean;
 }
 
 export interface ViewTransform {
@@ -33,6 +38,7 @@ export class Camera {
   private readonly side: number;
   private readonly top: number;
   private readonly bottom: number;
+  private readonly fillWidth: boolean;
 
   constructor(
     public worldW: number,
@@ -44,6 +50,7 @@ export class Camera {
     this.side = opts.sideMargin ?? 240;
     this.top = opts.topMargin ?? 480;
     this.bottom = opts.bottomMargin ?? 120;
+    this.fillWidth = opts.fillWidth ?? false;
     this.x = worldW / 2;
     this.y = worldH / 2;
   }
@@ -51,7 +58,14 @@ export class Camera {
   setViewport(w: number, h: number): void {
     this.viewW = Math.max(1, w);
     this.viewH = Math.max(1, h);
+    this.zoom = Math.max(this.zoom, this.effectiveMinZoom());
     this.clamp();
+  }
+
+  /** The smallest zoom allowed for the current viewport. */
+  effectiveMinZoom(): number {
+    if (!this.fillWidth) return this.minZoom;
+    return Math.min(this.maxZoom, Math.max(this.minZoom, this.viewW / (this.worldW + 2 * this.side)));
   }
 
   setWorld(w: number, h: number): void {
@@ -78,7 +92,7 @@ export class Camera {
   /** Zoom by `factor`, keeping the world point under screen (sx, sy) fixed. */
   zoomAt(factor: number, sx: number, sy: number): void {
     const before = this.screenToWorld(sx, sy);
-    this.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.zoom * factor));
+    this.zoom = Math.min(this.maxZoom, Math.max(this.effectiveMinZoom(), this.zoom * factor));
     const after = this.screenToWorld(sx, sy);
     this.x += before.x - after.x;
     this.y += before.y - after.y;
@@ -88,7 +102,7 @@ export class Camera {
   /** Show the whole map. */
   fitWorld(): void {
     const z = Math.min(this.viewW / this.worldW, this.viewH / (this.worldH + this.bottom)) * 0.98;
-    this.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, z));
+    this.zoom = Math.min(this.maxZoom, Math.max(this.effectiveMinZoom(), z));
     this.x = this.worldW / 2;
     this.y = this.worldH / 2;
     this.clamp();

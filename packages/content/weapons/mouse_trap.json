@@ -1,0 +1,19 @@
+{
+  "id": "mouse_trap",
+  "name": "Mouse Trap",
+  "category": "deploy",
+  "description": "Set a trap in front of you. After 2 s it snaps at the first Gumling that comes close.",
+  "input": {
+    "mode": "instant"
+  },
+  "deploy": {
+    "prop": "mouse_trap"
+  },
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

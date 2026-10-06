@@ -17,7 +17,7 @@ import { spawnFires, type Fire } from './fire.js';
  *   crate  — floats down on a parachute, picked up by touch: health or a weapon
  */
 export type PropKind = 'mine' | 'barrel' | 'crate';
-export type CrateKind = 'health' | 'weapon';
+export type CrateKind = 'health' | 'weapon' | 'utility';
 
 export interface PropJson {
   id: string;
@@ -32,12 +32,14 @@ export interface PropJson {
   gravityScale?: number;
   /** Blast damage it absorbs before it goes off (crates, barrels). */
   hp: number;
-  trigger?: { kind: 'proximity'; radius: number; fuseMinSeconds: number; fuseMaxSeconds: number; dudChance: number };
+  /** `armSeconds`: the trigger only goes live this long after the object appears (deployed traps). */
+  trigger?: { kind: 'proximity'; radius: number; fuseMinSeconds: number; fuseMaxSeconds: number; dudChance: number; armSeconds?: number };
   payload?: {
     explosion?: { radius: number; damage: number; knockback: number; carve: boolean };
     fire?: { count: number; speed: number; lifeSeconds: number; damage: number };
   };
-  pickup?: { heal?: number; ammo?: number };
+  /** `utility`: the ammo goes to a utility (teleport, girder…) instead of a weapon. */
+  pickup?: { heal?: number; ammo?: number; utility?: boolean };
 }
 
 export interface PropDef {
@@ -54,6 +56,7 @@ export interface PropDef {
   fuseMin: number; // ticks
   fuseMax: number;
   dudChance: number; // per 1000
+  armDelay: number; // ticks
   explosionRadius: number;
   damage: number;
   knockback: number; // ×256
@@ -64,6 +67,7 @@ export interface PropDef {
   fireDamage: number;
   heal: number;
   ammo: number;
+  utility: boolean;
 }
 
 export class PropDefinitionError extends Error {}
@@ -94,6 +98,7 @@ export function compileProp(p: PropJson): PropDef {
     fuseMin: T ? Math.round(num(at('trigger.fuseMinSeconds'), T.fuseMinSeconds, 0, 10) * TICKS_PER_SECOND) : 0,
     fuseMax: T ? Math.round(num(at('trigger.fuseMaxSeconds'), T.fuseMaxSeconds, T.fuseMinSeconds, 10) * TICKS_PER_SECOND) : 0,
     dudChance: T ? Math.round(num(at('trigger.dudChance'), T.dudChance, 0, 1) * 1000) : 0,
+    armDelay: T ? Math.round(num(at('trigger.armSeconds'), T.armSeconds ?? 0, 0, 10) * TICKS_PER_SECOND) : 0,
     explosionRadius: E ? num(at('payload.explosion.radius'), E.radius, 0, 200, true) : 0,
     damage: E ? num(at('payload.explosion.damage'), E.damage, 0, 200, true) : 0,
     knockback: E ? Math.round(num(at('payload.explosion.knockback'), E.knockback, 0, 4) * SUB) : 0,
@@ -104,6 +109,7 @@ export function compileProp(p: PropJson): PropDef {
     fireDamage: F ? num(at('payload.fire.damage'), F.damage, 0, 50, true) : 0,
     heal: num(at('pickup.heal'), p.pickup?.heal ?? 0, 0, 200, true),
     ammo: num(at('pickup.ammo'), p.pickup?.ammo ?? 0, 0, 9, true),
+    utility: p.pickup?.utility === true,
   };
   if (p.kind === 'crate' && d.heal === 0 && d.ammo === 0) throw new PropDefinitionError(`${at('pickup')}: a crate gives health or ammo`);
   if (p.kind === 'mine' && d.triggerRadius === 0) throw new PropDefinitionError(`${at('trigger')}: a mine needs a proximity trigger`);
@@ -131,6 +137,8 @@ export interface WorldObject {
   dud: boolean;
   /** Crates: still on the parachute. */
   falling: boolean;
+  /** Ticks before a proximity trigger goes live. */
+  wait: number;
 }
 
 export const MAX_OBJECTS = 64;
@@ -144,6 +152,7 @@ export function makeObject(id: number, propIndex: number, def: PropDef, x: numbe
     fuse: -1,
     dud: false,
     falling: def.kind === 'crate',
+    wait: def.armDelay,
   };
 }
 
@@ -222,7 +231,8 @@ export function stepObjects(
       events.push({ type: 'CrateLanded', tick, id: o.id, x: o.body.x >> 8, y: o.body.y >> 8 });
     }
     if (def.kind === 'mine') {
-      if (o.fuse === -1 && o.body.drownTicks === 0) {
+      if (o.wait > 0) o.wait--;
+      else if (o.fuse === -1 && o.body.drownTicks === 0) {
         const r = def.triggerRadius;
         for (const c of w.characters) {
           if (c.state === 'dead' || c.state === 'drowning') continue;

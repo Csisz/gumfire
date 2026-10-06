@@ -1,0 +1,27 @@
+{
+  "id": "gumball_scatter",
+  "name": "Gumball Scatter",
+  "category": "hitscan",
+  "description": "A blast of ten gumballs in a wide cone. Deadly up close, useless far away.",
+  "input": {
+    "mode": "instant"
+  },
+  "hitscan": {
+    "range": 260,
+    "pellets": 10,
+    "spreadDegrees": 24,
+    "explosion": {
+      "radius": 6,
+      "damage": 6,
+      "knockback": 0.35,
+      "carve": true
+    }
+  },
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

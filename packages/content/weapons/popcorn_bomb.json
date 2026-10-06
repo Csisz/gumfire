@@ -1,0 +1,72 @@
+{
+  "id": "popcorn_bomb",
+  "name": "Popcorn Bomb",
+  "category": "ballistic",
+  "description": "A paper bag of kernels on a fuse. When it pops, five hot kernels burst out and pop where they land (1–5 fuse, Alt bounce).",
+  "input": {
+    "mode": "aimCharge"
+  },
+  "launch": {
+    "speedMin": 1.5,
+    "speedMax": 12,
+    "chargeTicks": 60,
+    "muzzleOffset": 12
+  },
+  "projectile": {
+    "radius": 4,
+    "gravityScale": 1,
+    "windFactor": 0,
+    "triggers": [
+      {
+        "kind": "fuse",
+        "defaultSeconds": 3,
+        "playerSet": true
+      }
+    ],
+    "bounce": {
+      "low": 0.3,
+      "high": 0.65,
+      "friction": 0.8
+    },
+    "payload": {
+      "explosion": {
+        "radius": 30,
+        "damage": 20,
+        "knockback": 0.9,
+        "carve": true
+      },
+      "cluster": {
+        "count": 5,
+        "speed": 4.5,
+        "spreadDegrees": 130,
+        "projectile": {
+          "radius": 2,
+          "gravityScale": 1,
+          "windFactor": 0.3,
+          "triggers": [
+            {
+              "kind": "impact"
+            }
+          ],
+          "payload": {
+            "explosion": {
+              "radius": 24,
+              "damage": 12,
+              "knockback": 0.8,
+              "carve": true
+            }
+          },
+          "maxLifeTicks": 600
+        }
+      }
+    },
+    "maxLifeTicks": 1000
+  },
+  "ammo": {
+    "default": 3
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

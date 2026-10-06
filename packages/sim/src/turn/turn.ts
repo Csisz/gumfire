@@ -2,7 +2,7 @@ import type { SimEvent } from '../core/events.js';
 import { Btn, pressed, type InputFrame } from '../core/input.js';
 import { rollWind } from '../environment/wind.js';
 import { SETTLE_TICKS, hasPendingDamage, revealDamage, worldInMotion } from '../explosions/resolve.js';
-import { emitPhase, isAlive, livingTeams, type MatchState } from '../match/match.js';
+import { emitPhase, isAlive, livingSides, livingTeams, type MatchState } from '../match/match.js';
 import type { GameState } from '../state/gameState.js';
 import type { WeaponDef } from '../weapons/definition.js';
 import { chance, nextRange } from '../core/rng.js';
@@ -23,7 +23,7 @@ import { MAX_OBJECTS, makeObject } from '../environment/objects.js';
  * simulation keeps running in every phase (projectiles fly through the retreat, bodies settle).
  */
 
-export type ControlEndReason = 'timeout' | 'damage' | 'water' | 'retreatOver' | 'endTurn';
+export type ControlEndReason = 'timeout' | 'damage' | 'water' | 'retreatOver' | 'endTurn' | 'skip';
 
 /** The character that may act this tick and whether it may still use a weapon. */
 export function controlOf(s: GameState): { id: number; mayFire: boolean } {
@@ -46,25 +46,26 @@ export function maySelectWeapon(s: GameState): boolean {
 }
 
 /** A shot left the barrel: count it; a turn-ending weapon starts the retreat. */
-export function onShotFired(s: GameState, weapon: WeaponDef, events: SimEvent[]): void {
+export function onShotFired(s: GameState, weapon: WeaponDef, events: SimEvent[], fromAir = false): void {
   const m = s.match;
   if (!m || m.phase !== 'turnActive') return;
+  if (!weapon.endsTurn) return; // utilities that keep the turn going are not shots
   m.shotsFired++;
   if (weapon.endsTurn && m.shotsFired >= weapon.shotsPerTurn) {
     if (weapon.remote) {
       m.remoteWait = true; // the owner may still detonate it; the retreat follows the bang
       return;
     }
-    startRetreat(s, m, events);
+    startRetreat(s, m, events, fromAir ? m.ruleset.ropeRetreatTicks : m.ruleset.retreatTicks);
   }
 }
 
-function startRetreat(s: GameState, m: MatchState, events: SimEvent[]): void {
-  if (m.ruleset.retreatTicks <= 0) {
+function startRetreat(s: GameState, m: MatchState, events: SimEvent[], ticks = m.ruleset.retreatTicks): void {
+  if (ticks <= 0) {
     endControl(s, m, 'retreatOver', events);
     return;
   }
-  m.retreatTicksLeft = m.ruleset.retreatTicks;
+  m.retreatTicksLeft = ticks;
   emitPhase(m, 'retreat', s.tick, events);
   events.push({ type: 'RetreatStarted', tick: s.tick, id: s.activeCharacter, ticks: m.retreatTicksLeft });
 }
@@ -94,6 +95,13 @@ export function selectNextInTeam(s: GameState, events: SimEvent[]): void {
       return;
     }
   }
+}
+
+/** "Skip" utility: the active character gives up the rest of the turn. */
+export function skipTurn(s: GameState, events: SimEvent[]): void {
+  const m = s.match;
+  if (!m || m.phase !== 'turnActive') return;
+  endControl(s, m, 'skip', events);
 }
 
 function endControl(s: GameState, m: MatchState, reason: ControlEndReason, events: SimEvent[]): void {
@@ -145,6 +153,7 @@ function beginTurn(s: GameState, m: MatchState, events: SimEvent[]): void {
   }
   m.turn++;
   m.activeTeam = team;
+  t.turns++;
   m.turnTicksLeft = m.ruleset.turnTicks;
   m.retreatTicksLeft = 0;
   m.shotsFired = 0;
@@ -175,16 +184,21 @@ function beginTurn(s: GameState, m: MatchState, events: SimEvent[]): void {
 function maybeDropCrate(s: GameState, m: MatchState, events: SimEvent[]): void {
   if (!s.terrain || m.ruleset.crateChance <= 0 || s.objects.length >= MAX_OBJECTS) return;
   const health = s.props.findIndex((p) => p.kind === 'crate' && p.heal > 0);
-  const weapon = s.props.findIndex((p) => p.kind === 'crate' && p.ammo > 0);
-  if (health < 0 && weapon < 0) return;
+  const weapon = s.props.findIndex((p) => p.kind === 'crate' && p.ammo > 0 && !p.utility);
+  const utility = s.props.findIndex((p) => p.kind === 'crate' && p.ammo > 0 && p.utility);
+  if (health < 0 && weapon < 0 && utility < 0) return;
   if (!chance(s.rng.crates, m.ruleset.crateChance, 1000)) return;
-  const isHealth = weapon < 0 || (health >= 0 && chance(s.rng.crates, m.ruleset.healthCrateShare, 1000));
-  const idx = isHealth ? health : weapon;
+  let kind: 'health' | 'weapon' | 'utility';
+  if (health >= 0 && (weapon < 0 && utility < 0 ? true : chance(s.rng.crates, m.ruleset.healthCrateShare, 1000))) kind = 'health';
+  else if (utility >= 0 && (weapon < 0 || chance(s.rng.crates, m.ruleset.utilityCrateShare, 1000))) kind = 'utility';
+  else kind = weapon >= 0 ? 'weapon' : 'health';
+  const idx = kind === 'health' ? health : kind === 'utility' ? utility : weapon;
+  if (idx < 0) return;
   const def = s.props[idx]!;
   const x = nextRange(s.rng.crates, 40, s.terrain.width - 41);
   const o = makeObject(s.nextObjectId++, idx, def, x, -40);
   s.objects.push(o);
-  events.push({ type: 'CrateDropped', tick: s.tick, id: o.id, kind: isHealth ? 'health' : 'weapon', x });
+  events.push({ type: 'CrateDropped', tick: s.tick, id: o.id, kind, x });
 }
 
 /** Ammo the active team has left for weapon `index` (−1 = unlimited; free play: unlimited). */
@@ -194,6 +208,20 @@ export function ammoLeft(s: GameState, characterId: number, index: number): numb
   const c = s.characters.find((x) => x.id === characterId);
   const team = c ? m.teams[c.team] : undefined;
   return team?.ammo[index] ?? -1;
+}
+
+/**
+ * Turns the active character's team must still wait before weapon `index` unlocks (classic
+ * weapon delay: big weapons are locked for the first N turns); 0 = usable.
+ */
+export function delayLeft(s: GameState, characterId: number, index: number): number {
+  const m = s.match;
+  const def = s.weapons[index];
+  if (!m || !def || def.delayTurns <= 0) return 0;
+  const c = s.characters.find((x) => x.id === characterId);
+  const team = c ? m.teams[c.team] : undefined;
+  if (!team) return 0;
+  return Math.max(0, def.delayTurns - team.turns + 1);
 }
 
 /** Use one round of ammo for the first shot of a turn (multi-shot weapons cost one). */
@@ -222,19 +250,23 @@ function finish(s: GameState, m: MatchState, result: 'win' | 'draw', winner: num
 /** Turn end: victory / draw, sudden death, then the next turn's prep. */
 function endTurn(s: GameState, m: MatchState, events: SimEvent[]): void {
   const living = livingTeams(m, s.characters);
-  if (living.length === 1) return finish(s, m, 'win', living[0]!, events);
+  const sides = livingSides(m, s.characters);
+  if (sides.length === 1) return finish(s, m, 'win', living[0]!, events); // allies win together
   if (living.length === 0) return finish(s, m, 'draw', -1, events);
-  if (m.ruleset.roundTicks > 0 && m.roundTicksLeft <= 0 && !m.suddenDeath) {
+  const clockOut = m.ruleset.roundTicks > 0 && m.roundTicksLeft <= 0;
+  const turnsOut = m.ruleset.roundTurns > 0 && m.turn >= m.ruleset.roundTurns;
+  if ((clockOut || turnsOut) && !m.suddenDeath) {
     m.suddenDeath = true;
     const mode = m.ruleset.suddenDeath;
     events.push({ type: 'SuddenDeath', tick: s.tick, mode });
     if (mode === 'roundEnds') {
-      // the team with the most hp left wins; a tie is a draw
+      // the side with the most hp left wins; a tie is a draw
       const hp = new Map<number, number>();
-      for (const c of s.characters) if (isAlive(c)) hp.set(c.team, (hp.get(c.team) ?? 0) + c.hp);
+      for (const c of s.characters) if (isAlive(c)) hp.set(m.teams[c.team]!.side, (hp.get(m.teams[c.team]!.side) ?? 0) + c.hp);
       const ranked = [...hp.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
       if (ranked.length > 1 && ranked[0]![1] === ranked[1]![1]) return finish(s, m, 'draw', -1, events);
-      return finish(s, m, 'win', ranked[0]![0], events);
+      const side = ranked[0]![0];
+      return finish(s, m, 'win', living.find((id) => m.teams[id]!.side === side)!, events);
     }
     if (mode === 'hpToOne' || mode === 'both') {
       for (const c of s.characters) if (isAlive(c) && c.hp > 1) c.hp = 1;

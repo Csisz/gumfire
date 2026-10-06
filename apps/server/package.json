@@ -1,0 +1,21 @@
+{
+  "name": "@gumfire/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "start": "node dist/server.mjs"
+  },
+  "dependencies": {
+    "@gumfire/net": "workspace:*",
+    "@gumfire/sim": "workspace:*",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@gumfire/content": "workspace:*",
+    "@types/node": "^26.6.4",
+    "@types/ws": "^8.18.2",
+    "vite": "^8.3.1"
+  }
+}

@@ -26,6 +26,42 @@ export const ICE_WATER: WaterStyle = {
   outline: 0x1f5f8c,
 };
 
+/** Garden pond. */
+export const POND_WATER: WaterStyle = {
+  body: 0x3fa7b8,
+  bodyAlpha: 0.94,
+  surface: 0x79cfd8,
+  foam: 0xe9fbfb,
+  outline: 0x1d6a78,
+};
+
+/** Spilled ink (Toy Desk). */
+export const INK_WATER: WaterStyle = {
+  body: 0x3b4fb0,
+  bodyAlpha: 0.95,
+  surface: 0x6a7fd8,
+  foam: 0xdfe5ff,
+  outline: 0x1f2a6b,
+};
+
+/** Motor oil (Garage Junkyard). */
+export const OIL_WATER: WaterStyle = {
+  body: 0x2f2a33,
+  bodyAlpha: 0.97,
+  surface: 0x5a4f63,
+  foam: 0xb9a9c9,
+  outline: 0x141118,
+};
+
+/** Bubbly bath water (Bathroom Harbour). */
+export const BATH_WATER: WaterStyle = {
+  body: 0x52b8e8,
+  bodyAlpha: 0.9,
+  surface: 0x9adcf7,
+  foam: 0xffffff,
+  outline: 0x24709c,
+};
+
 /**
  * The deadly liquid below `waterY` (plan §8.7, §9.6). Presentation only: the sim owns the
  * level; this view just draws a band from the level down, with an animated wavy surface.

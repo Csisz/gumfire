@@ -11,10 +11,19 @@
       "path": "packages/content"
     },
     {
+      "path": "packages/ai"
+    },
+    {
+      "path": "packages/net"
+    },
+    {
       "path": "apps/sandbox"
     },
     {
       "path": "apps/client"
+    },
+    {
+      "path": "apps/server"
     }
   ]
 }

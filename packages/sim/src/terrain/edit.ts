@@ -185,3 +185,49 @@ export function addRect(t: TerrainState, x: number, y: number, w: number, h: num
   }
   return finish(t, x0, y0, x1, y1, changed);
 }
+
+/**
+ * Fill AIR pixels within distance r of the segment (ax, ay)–(bx, by) with `material`: tilted
+ * girders. Same exact integer capsule test as `carveCapsule`; existing terrain is left alone.
+ */
+export function addCapsule(t: TerrainState, ax: number, ay: number, bx: number, by: number, r: number, material: number = Mat.GIRDER): EditRect | null {
+  for (const [n, v] of [['ax', ax], ['ay', ay], ['bx', bx], ['by', by]] as const) checkInt(n, v);
+  checkRadius(r);
+  if (material === Mat.AIR || material < 0 || material > Mat.BORDER || !Number.isInteger(material)) throw new RangeError(`addCapsule: invalid material ${material}`);
+  const dx = bx - ax, dy = by - ay;
+  const L2 = dx * dx + dy * dy;
+  if (L2 > MAX_CAPSULE_LENGTH * MAX_CAPSULE_LENGTH) throw new RangeError('capsule too long; split it');
+  const x0 = Math.max(0, Math.min(ax, bx) - r);
+  const x1 = Math.min(t.width - 1, Math.max(ax, bx) + r);
+  const y0 = Math.max(0, Math.min(ay, by) - r);
+  const y1 = Math.min(t.height - 1, Math.max(ay, by) + r);
+  if (x0 > x1 || y0 > y1) return null;
+  const r2 = r * r, r2L2 = r2 * L2, mat = t.mat;
+  let changed = 0;
+  let minX = x1, maxX = x0, minY = y1, maxY = y0;
+  for (let y = y0; y <= y1; y++) {
+    const py = y - ay;
+    const row = y * t.width;
+    for (let x = x0; x <= x1; x++) {
+      const i = row + x;
+      if (mat[i] !== Mat.AIR) continue;
+      const px = x - ax;
+      const proj = px * dx + py * dy;
+      let inside: boolean;
+      if (L2 === 0 || proj <= 0) inside = px * px + py * py <= r2;
+      else if (proj >= L2) {
+        const qx = x - bx, qy = y - by;
+        inside = qx * qx + qy * qy <= r2;
+      } else inside = (px * px + py * py) * L2 - proj * proj <= r2L2;
+      if (inside) {
+        setPixelTracked(t, i, x, y, material);
+        changed++;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  return finish(t, minX, minY, maxX, maxY, changed);
+}

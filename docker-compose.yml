@@ -1,0 +1,13 @@
+# GUMFIRE server (game + online rooms). On a Synology NAS: Container Manager → Project → this file.
+# When the game itself is hosted elsewhere (Vercel, see DEPLOY.md), list that site here so only
+# its pages can use the relay; leave it out (or "*") to allow any page.
+services:
+  gumfire:
+    build: .
+    image: gumfire:latest
+    container_name: gumfire
+    ports:
+      - "8787:8787"
+    environment:
+      ALLOWED_ORIGINS: "*"
+    restart: unless-stopped

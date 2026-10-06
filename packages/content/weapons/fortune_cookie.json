@@ -1,0 +1,19 @@
+{
+  "id": "fortune_cookie",
+  "name": "Fortune Cookie",
+  "category": "utility",
+  "description": "Crack it and you are somewhere else: click any free spot on the map, then Fire. Ends your turn.",
+  "input": {
+    "mode": "target"
+  },
+  "utility": {
+    "kind": "teleport"
+  },
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

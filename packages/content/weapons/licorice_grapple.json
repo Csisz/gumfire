@@ -1,0 +1,25 @@
+{
+  "id": "licorice_grapple",
+  "name": "Licorice Grapple",
+  "category": "utility",
+  "description": "A licorice rope: it bites the first ground it hits. \u2190 \u2192 swing, \u2191 \u2193 reel, Space lets go, Space in mid-air shoots it again (5\u00d7).",
+  "input": {
+    "mode": "instant"
+  },
+  "utility": {
+    "kind": "rope",
+    "maxLength": 440,
+    "headSpeed": 40,
+    "shots": 5,
+    "maxSpeed": 14,
+    "swing": 0.08,
+    "reel": 2
+  },
+  "ammo": {
+    "default": 5
+  },
+  "turn": {
+    "endsTurn": false,
+    "shotsPerTurn": 1
+  }
+}

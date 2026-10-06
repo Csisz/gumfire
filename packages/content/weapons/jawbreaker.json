@@ -1,0 +1,51 @@
+{
+  "id": "jawbreaker",
+  "name": "Jawbreaker",
+  "category": "ballistic",
+  "description": "A rock-hard candy ball. Bounces like mad and cracks open on its third hard bounce (or after 4 s).",
+  "input": {
+    "mode": "aimCharge"
+  },
+  "launch": {
+    "speedMin": 1.5,
+    "speedMax": 11,
+    "chargeTicks": 60,
+    "muzzleOffset": 12
+  },
+  "projectile": {
+    "radius": 5,
+    "gravityScale": 1,
+    "windFactor": 0,
+    "triggers": [
+      {
+        "kind": "fuse",
+        "defaultSeconds": 4
+      },
+      {
+        "kind": "bounces",
+        "count": 3
+      }
+    ],
+    "bounce": {
+      "low": 0.6,
+      "high": 0.6,
+      "friction": 0.92
+    },
+    "payload": {
+      "explosion": {
+        "radius": 50,
+        "damage": 50,
+        "knockback": 1.1,
+        "carve": true
+      }
+    },
+    "maxLifeTicks": 1000
+  },
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

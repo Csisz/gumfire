@@ -1,0 +1,26 @@
+{
+  "id": "utility_crate",
+  "name": "Toolbox",
+  "kind": "crate",
+  "tags": [
+    "pickup",
+    "pushable"
+  ],
+  "radius": 8,
+  "restitution": 0.1,
+  "friction": 0.8,
+  "gravityScale": 0.15,
+  "hp": 30,
+  "payload": {
+    "explosion": {
+      "radius": 24,
+      "damage": 10,
+      "knockback": 0.8,
+      "carve": true
+    }
+  },
+  "pickup": {
+    "ammo": 1,
+    "utility": true
+  }
+}

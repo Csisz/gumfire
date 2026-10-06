@@ -1,0 +1,19 @@
+{
+  "id": "nap_time",
+  "name": "Nap Time",
+  "category": "utility",
+  "description": "Skip the rest of your turn.",
+  "input": {
+    "mode": "instant"
+  },
+  "utility": {
+    "kind": "skip"
+  },
+  "ammo": {
+    "default": "inf"
+  },
+  "turn": {
+    "endsTurn": false,
+    "shotsPerTurn": 1
+  }
+}

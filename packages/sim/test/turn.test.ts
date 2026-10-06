@@ -257,11 +257,53 @@ describe('victory, draw, sudden death', () => {
     expect(s.waterY).toBe(740);
   });
 
+  it('a turn limit starts sudden death too, even with round time left (M19)', () => {
+    const s = game([{ name: 'A', spawns: spawn(300) }, { name: 'B', spawns: spawn(1200) }], { roundSeconds: 900, roundTurns: 3 });
+    const log = runUntil(s, (st) => st.match!.turn === 5);
+    const sd = ofType(log, 'SuddenDeath')[0]!;
+    expect(sd).toBeDefined();
+    // turns 1, 2, 3 were played before it
+    expect(ofType(log, 'TurnStarted').filter((e) => e.tick < sd.tick)).toHaveLength(3);
+    for (const c of s.characters) expect(c.hp).toBe(1);
+    expect(s.match!.roundTicksLeft).toBeGreaterThan(0);
+  });
+
   it("sudden death 'roundEnds' gives the win to the team with more hp", () => {
     const s = game([{ name: 'A', spawns: spawn(300) }, { name: 'B', spawns: spawn(1200) }], { roundSeconds: 1, suddenDeath: 'roundEnds' });
     s.characters[1]!.hp = 60;
     const log = runUntil(s, phaseIs('matchOver'));
     expect(ofType(log, 'MatchEnded')).toEqual([expect.objectContaining({ result: 'win', winner: 0 })]);
+  });
+
+  it('alliances: sides alternate turns and allies win together', () => {
+    const s = game(
+      [
+        { name: 'A1', side: 0, spawns: spawn(200) },
+        { name: 'A2', side: 0, spawns: spawn(500) },
+        { name: 'B1', side: 1, spawns: spawn(800) },
+        { name: 'B2', side: 1, spawns: spawn(1100) },
+      ],
+      {},
+      5,
+    );
+    const m = s.match!;
+    expect(m.teams.map((t) => t.side)).toEqual([0, 0, 1, 1]);
+    // the rotation alternates sides
+    const sides = m.order.map((id) => m.teams[id]!.side);
+    for (let i = 1; i < sides.length; i++) expect(sides[i]).not.toBe(sides[i - 1]);
+    // knock out side 1: side 0 wins even though two of its teams are still standing
+    runUntil(s, phaseIs('turnActive'));
+    for (const c of s.characters) if (m.teams[c.team]!.side === 1) c.hp = 5;
+    const xs = s.characters.filter((c) => m.teams[c.team]!.side === 1).map((c) => charPx(c));
+    const log = runUntil(s, phaseIs('matchOver'), { cmds: xs.map((x) => ({ type: 'debugExplode' as const, x, y: standY, r: 30, damage: 30, knockback: 0 })) });
+    const end = ofType(log, 'MatchEnded')[0]!;
+    expect(end.result).toBe('win');
+    expect(m.teams[end.winner]!.side).toBe(0);
+  });
+
+  it('alliances: one side only is not a match; bad sides are rejected', () => {
+    expect(() => game([{ name: 'A', side: 2, spawns: spawn(300) }, { name: 'B', side: 2, spawns: spawn(600) }])).toThrow(/two sides/);
+    expect(() => game([{ name: 'A', side: 9, spawns: spawn(300) }, { name: 'B', spawns: spawn(600) }])).toThrow(/side/);
   });
 
   it('a whole scripted match is deterministic', () => {

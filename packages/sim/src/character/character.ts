@@ -16,7 +16,11 @@ import type { WeaponDef } from '../weapons/definition.js';
  * Positions are subpixels; on the ground they sit exactly on the pixel centre.
  */
 
-export type CharState = 'idle' | 'walk' | 'jumpPrep' | 'charging' | 'air' | 'landing' | 'drowning' | 'dead';
+/**
+ * `tool`: digging or burning a tunnel (drill, torch) — moved by the tool, not by walking.
+ * `rope`: hanging on the grapple — moved by the rope system (weapons/rope.ts).
+ */
+export type CharState = 'idle' | 'walk' | 'jumpPrep' | 'charging' | 'air' | 'landing' | 'drowning' | 'dead' | 'tool' | 'rope';
 
 export interface Character {
   id: number;
@@ -56,6 +60,35 @@ export interface Character {
   hasTarget: boolean;
   targetX: number;
   targetY: number;
+  // ---- gear (M12 utilities)
+  /** Parachute open: slow, wind-blown descent until landing. */
+  chute: boolean;
+  /** Jetpack on, with this much fuel (ticks of thrust) left. */
+  jet: boolean;
+  jetFuel: number;
+  /** Dig tool: ticks left, direction (unit ×256), weapon index, characters already burnt. */
+  toolTicks: number;
+  toolDx: number;
+  toolDy: number;
+  toolWeapon: number;
+  toolStruck: number[];
+  // ---- grapple (M13)
+  /** A rope use is under way: re-shots left in the air (landing forfeits them), def index. */
+  ropeOn: boolean;
+  ropeShots: number;
+  ropeWeapon: number;
+  /** Anchor points, flat [x, y, side, …] in whole px; the last one is the live pivot. */
+  ropePivots: number[];
+  /** Live segment length and the length wrapped around earlier pivots, subpixels. */
+  ropeLen: number;
+  ropeWrapped: number;
+  /** Grapple head in flight: position (subpixels), direction (unit ×256), px travelled. */
+  headOn: boolean;
+  headX: number;
+  headY: number;
+  headDx: number;
+  headDy: number;
+  headDist: number;
 }
 
 export const CHAR = {
@@ -136,6 +169,26 @@ export function makeCharacter(id: number, team: number, px: number, py: number):
     hasTarget: false,
     targetX: 0,
     targetY: 0,
+    chute: false,
+    jet: false,
+    jetFuel: 0,
+    toolTicks: 0,
+    toolDx: 0,
+    toolDy: 0,
+    toolWeapon: -1,
+    toolStruck: [],
+    ropeOn: false,
+    ropeShots: 0,
+    ropeWeapon: -1,
+    ropePivots: [],
+    ropeLen: 0,
+    ropeWrapped: 0,
+    headOn: false,
+    headX: 0,
+    headY: 0,
+    headDx: 0,
+    headDy: 0,
+    headDist: 0,
   };
 }
 
@@ -147,7 +200,7 @@ function setState(c: Character, s: CharState): void {
   c.stateTicks = 0;
 }
 
-function placeAt(c: Character, px: number, py: number): void {
+export function placeAt(c: Character, px: number, py: number): void {
   c.body.x = px * SUB + SUB / 2;
   c.body.y = py * SUB + SUB / 2;
   c.body.vx = 0;
@@ -182,7 +235,7 @@ export function walkStep(t: TerrainState, c: Character, dir: number): 'moved' | 
   return 'blocked';
 }
 
-function startFall(c: Character, vx: number, vy: number): void {
+export function startFall(c: Character, vx: number, vy: number): void {
   c.body.vx = vx;
   c.body.vy = vy;
   c.body.sleeping = false;
@@ -209,6 +262,7 @@ export function stepCharacter(
 ): number {
   if (c.state === 'dead') return -1;
   c.stateTicks++;
+  if (c.state === 'tool' || c.state === 'rope') return -1; // moved by the tool / rope systems
 
   // ---- drowning: the body sinks; the character dies when it is gone
   if (c.state === 'drowning') {
@@ -346,6 +400,19 @@ function stepGround(
   return -1;
 }
 
+/** Parachute and jetpack switch off when the character lands, drowns or dies. */
+export function gearOff(c: Character, tick: number, events: SimEvent[]): void {
+  if (c.chute) {
+    c.chute = false;
+    events.push({ type: 'GearChanged', tick, id: c.id, gear: 'chute', on: false });
+  }
+  if (c.jet) {
+    c.jet = false;
+    c.jetFuel = 0;
+    events.push({ type: 'GearChanged', tick, id: c.id, gear: 'jet', on: false });
+  }
+}
+
 function stepAir(c: Character, t: TerrainState, waterY: number, tick: number, events: SimEvent[]): void {
   const res = stepBody(c.body, t, waterY, tick, []);
   if (res.removed) {
@@ -368,6 +435,15 @@ function stepAir(c: Character, t: TerrainState, waterY: number, tick: number, ev
   c.body.sleeping = false;
   c.body.stillTicks = 0;
   c.lastImpact = res.impactSpeed;
+  // the parachute folds on landing; a jetpack with fuel left stays on (↑ lifts off again)
+  if (c.chute) {
+    c.chute = false;
+    events.push({ type: 'GearChanged', tick, id: c.id, gear: 'chute', on: false });
+  }
+  // landing ends a rope use: the re-shots left are forfeit (classic rule)
+  c.ropeOn = false;
+  c.ropeShots = 0;
+  c.headOn = false;
   const dmg = c.fallImmune ? 0 : fallDamage(res.impactSpeed);
   c.fallImmune = false;
   events.push({ type: 'CharacterLanded', tick, id: c.id, impact: res.impactSpeed, damage: dmg });
@@ -379,6 +455,7 @@ function stepAir(c: Character, t: TerrainState, waterY: number, tick: number, ev
 }
 
 function enterWater(c: Character, tick: number, events: SimEvent[]): void {
+  gearOff(c, tick, events);
   if (c.body.drownTicks === 0) c.body.drownTicks = 1;
   c.body.sleeping = false;
   setState(c, 'drowning');
@@ -391,6 +468,7 @@ export function killCharacter(c: Character, tick: number, reason: 'drowned' | 'l
 }
 
 function die(c: Character, tick: number, reason: 'drowned' | 'lost' | 'hp', events: SimEvent[]): void {
+  gearOff(c, tick, events);
   c.hp = 0;
   c.pendingDamage = 0;
   setState(c, 'dead');

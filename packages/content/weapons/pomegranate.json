@@ -1,0 +1,78 @@
+{
+  "id": "pomegranate",
+  "name": "Pomegranate",
+  "category": "ballistic",
+  "description": "Super weapon, only from surprise boxes. Bursts into six heavy seeds that bounce around before they blow.",
+  "input": {
+    "mode": "aimCharge"
+  },
+  "launch": {
+    "speedMin": 1.5,
+    "speedMax": 11,
+    "chargeTicks": 60,
+    "muzzleOffset": 12
+  },
+  "projectile": {
+    "radius": 5,
+    "gravityScale": 1,
+    "windFactor": 0,
+    "triggers": [
+      {
+        "kind": "fuse",
+        "defaultSeconds": 3,
+        "playerSet": true
+      }
+    ],
+    "bounce": {
+      "low": 0.3,
+      "high": 0.6,
+      "friction": 0.8
+    },
+    "payload": {
+      "explosion": {
+        "radius": 40,
+        "damage": 35,
+        "knockback": 1.0,
+        "carve": true
+      },
+      "cluster": {
+        "count": 6,
+        "speed": 6,
+        "spreadDegrees": 140,
+        "projectile": {
+          "radius": 3,
+          "gravityScale": 1,
+          "windFactor": 0,
+          "triggers": [
+            {
+              "kind": "fuse",
+              "defaultSeconds": 2.2
+            }
+          ],
+          "bounce": {
+            "low": 0.55,
+            "high": 0.55,
+            "friction": 0.85
+          },
+          "payload": {
+            "explosion": {
+              "radius": 42,
+              "damage": 40,
+              "knockback": 1.0,
+              "carve": true
+            }
+          },
+          "maxLifeTicks": 600
+        }
+      }
+    },
+    "maxLifeTicks": 1000
+  },
+  "ammo": {
+    "default": 0
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

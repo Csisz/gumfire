@@ -1,0 +1,23 @@
+{
+  "id": "spatula_shove",
+  "name": "Spatula Shove",
+  "category": "melee",
+  "description": "No damage, just a firm flat push. Perfect for nudging someone off a ledge or into the water.",
+  "input": {
+    "mode": "instant"
+  },
+  "melee": {
+    "reach": 16,
+    "arcDegrees": 140,
+    "damage": 0,
+    "impulse": 5,
+    "angleDegrees": 12
+  },
+  "ammo": {
+    "default": 1
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

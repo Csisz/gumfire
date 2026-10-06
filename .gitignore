@@ -5,8 +5,3 @@ coverage/
 .vite/
 *.log
 tools/bench/.out/
-.env
-.env.local
-.env.*.local
-build/
-.DS_Store

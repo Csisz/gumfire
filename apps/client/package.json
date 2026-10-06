@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gumfire/ai": "workspace:*",
     "@gumfire/content": "workspace:*",
+    "@gumfire/net": "workspace:*",
     "@gumfire/render": "workspace:*",
     "@gumfire/sim": "workspace:*",
     "pixi.js": "^8.21.0"

@@ -21,6 +21,12 @@ export interface TeamStats {
   shots: number;
 }
 
+/** Per-Gumling statistics for the awards: damage dealt to enemies, knock-outs. */
+export interface CharStats {
+  dealt: number;
+  kills: number;
+}
+
 /**
  * One match: the authoritative sim state, the fixed 50 Hz loop and the recording (inputs +
  * commands) that makes every match a replay. The client never mutates `state` directly —
@@ -33,16 +39,34 @@ export class MatchSession {
   readonly commands: TimedCommand[] = [];
   private queue: SimCommand[] = [];
   readonly stats: TeamStats[];
+  /** Damage and KOs credited to whoever's turn it was (by character id). */
+  readonly charStats = new Map<number, CharStats>();
+  readonly deaths: Array<{ id: number; reason: 'drowned' | 'lost' | 'hp'; by: number }> = [];
+  private actor = 0;
   readonly startedAt = performance.now();
   paused = false;
 
-  constructor(readonly config: GameConfig) {
-    this.state = createGame(config);
+  /** `from`: start from this state instead of a fresh game (replays that begin mid-match). */
+  constructor(
+    readonly config: GameConfig,
+    from?: GameState,
+  ) {
+    this.state = from ?? createGame(config);
     this.stats = (this.state.match?.teams ?? []).map(() => ({ damageTaken: 0, lost: 0, shots: 0 }));
   }
 
   command(c: SimCommand): void {
     this.queue.push(c);
+  }
+
+  /** The commands the next `tick()` will apply (online: they go into the shared log). */
+  pendingCommands(): SimCommand[] {
+    return this.queue.slice(0, MAX_COMMANDS_PER_TICK);
+  }
+
+  /** Drop queued commands (online: this player may not act on this tick). */
+  clearCommands(): void {
+    this.queue.length = 0;
   }
 
   /** Advance one tick with this frame; returns the tick's events. */
@@ -59,9 +83,30 @@ export class MatchSession {
     return this.state.characters.find((c) => c.id === id)?.team ?? -1;
   }
 
+  /** Side of a character's team (allies share one, M16). */
+  private sideOf(id: number): number {
+    const t = this.teamOf(id);
+    return t >= 0 ? (this.state.match?.teams[t]?.side ?? t) : -1;
+  }
+
+  private credit(id: number): CharStats {
+    let c = this.charStats.get(id);
+    if (!c) {
+      c = { dealt: 0, kills: 0 };
+      this.charStats.set(id, c);
+    }
+    return c;
+  }
+
   private collect(events: SimEvent[]): void {
     for (const e of events) {
       const st = (id: number) => this.stats[this.teamOf(id)];
+      if (e.type === 'TurnStarted') this.actor = e.id;
+      if (e.type === 'CharacterDamaged' && this.actor && this.sideOf(e.id) !== this.sideOf(this.actor)) this.credit(this.actor).dealt += e.amount;
+      if (e.type === 'CharacterDied') {
+        this.deaths.push({ id: e.id, reason: e.reason, by: this.actor });
+        if (this.actor && this.sideOf(e.id) !== this.sideOf(this.actor)) this.credit(this.actor).kills++;
+      }
       if (e.type === 'CharacterDamaged') {
         const s = st(e.id);
         if (s) s.damageTaken += e.amount;

@@ -1,0 +1,43 @@
+{
+  "id": "toffee_bomb",
+  "name": "Sticky Toffee",
+  "category": "ballistic",
+  "description": "A gooey toffee lump that sticks to the first wall, floor or ceiling it touches, then blows after 3 s.",
+  "input": {
+    "mode": "aimCharge"
+  },
+  "launch": {
+    "speedMin": 1.5,
+    "speedMax": 12,
+    "chargeTicks": 60,
+    "muzzleOffset": 12
+  },
+  "projectile": {
+    "radius": 4,
+    "gravityScale": 1,
+    "windFactor": 0.5,
+    "sticky": true,
+    "triggers": [
+      {
+        "kind": "fuse",
+        "defaultSeconds": 3
+      }
+    ],
+    "payload": {
+      "explosion": {
+        "radius": 45,
+        "damage": 45,
+        "knockback": 1.0,
+        "carve": true
+      }
+    },
+    "maxLifeTicks": 1000
+  },
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
+}

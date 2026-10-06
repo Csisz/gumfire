@@ -1,0 +1,16 @@
+{
+  "name": "GUMFIRE",
+  "short_name": "GUMFIRE",
+  "description": "Tiny gummies. Big snacks. Sticky battles! A turn-based artillery game for 2–4 players.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#98e4fc",
+  "theme_color": "#98e4fc",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

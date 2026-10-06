@@ -22,8 +22,20 @@ export const MAX_PROJECTILES = 64;
  * (other than the shooter) or solid pixel; a small blast goes off there. A miss flies out of range.
  */
 export function fireHitscan(s: GameState, c: Character, weaponIndex: number, def: WeaponDef, events: SimEvent[]): void {
+  for (let i = 0; i < def.pellets; i++) {
+    // a spray fans its pellets evenly over the spread, each nudged a little (seeded)
+    let off = 0;
+    if (def.pellets > 1) {
+      off = Math.trunc((def.pelletSpread * i) / (def.pellets - 1)) - (def.pelletSpread >> 1);
+      off += nextRange(s.rng.misc, -6, 6);
+    }
+    hitscanRay(s, c, weaponIndex, def, c.aim + off, events);
+  }
+}
+
+function hitscanRay(s: GameState, c: Character, weaponIndex: number, def: WeaponDef, aim: number, events: SimEvent[]): void {
   const t = s.terrain!;
-  const dir = launchVector(c.aim, c.facing, SUB); // ×256 unit vector, screen y down
+  const dir = launchVector(aim, c.facing, SUB); // ×256 unit vector, screen y down
   let x = c.body.x + Math.trunc((dir.vx * def.muzzleOffset * SUB) / SUB);
   let y = c.body.y + Math.trunc((dir.vy * def.muzzleOffset * SUB) / SUB);
   const x0 = x >> 8, y0 = y >> 8;
@@ -46,7 +58,7 @@ export function fireHitscan(s: GameState, c: Character, weaponIndex: number, def
   }
   const x1 = x >> 8, y1 = y >> 8;
   events.push({ type: 'HitscanFired', tick: s.tick, id: c.id, weapon: weaponIndex, x0, y0, x1, y1, hit });
-  if (hit !== 'none') {
+  if (hit !== 'none' && s.pendingExplosions.length < MAX_PROJECTILES) {
     s.pendingExplosions.push({ x: x1, y: y1, radius: def.explosionRadius, damage: def.damage, knockback: def.knockback, carve: def.carve, cause: 'weapon', source: 0 });
   }
 }

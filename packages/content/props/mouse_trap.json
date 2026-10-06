@@ -1,0 +1,30 @@
+{
+  "id": "mouse_trap",
+  "name": "Mouse Trap",
+  "kind": "mine",
+  "tags": [
+    "explosive",
+    "pushable",
+    "deployed"
+  ],
+  "radius": 5,
+  "restitution": 0.15,
+  "friction": 0.8,
+  "hp": 1,
+  "trigger": {
+    "kind": "proximity",
+    "radius": 36,
+    "fuseMinSeconds": 0.2,
+    "fuseMaxSeconds": 0.4,
+    "dudChance": 0,
+    "armSeconds": 2
+  },
+  "payload": {
+    "explosion": {
+      "radius": 46,
+      "damage": 45,
+      "knockback": 1.0,
+      "carve": true
+    }
+  }
+}

@@ -2,6 +2,8 @@
  * Simulation events: plain data emitted by `step()` for render, audio and UI.
  * Events are NOT part of the hashed state.
  */
+import type { UtilityKind } from '../weapons/definition.js';
+
 export type SimEvent =
   /** Terrain pixels changed inside this inclusive rect (renderer repaints it plus a margin). */
   | { type: 'TerrainChanged'; tick: number; x0: number; y0: number; x1: number; y1: number; changed: number; cause: 'carve' | 'tunnel' | 'girder' | 'explosion' | 'fire' }
@@ -24,7 +26,7 @@ export type SimEvent =
   /** `speed` = launch speed in subpixels/tick; `power` = charge ticks. */
   | { type: 'ProjectileFired'; tick: number; id: number; weapon: number; owner: number; power: number; speed: number; x: number; y: number }
   /** A projectile's trigger fired here (the explosion itself follows as `Exploded`). */
-  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'object' | 'timeout' | 'fuse' | 'remote'; characterId: number }
+  | { type: 'ProjectileImpact'; tick: number; id: number; weapon: number; x: number; y: number; hit: 'terrain' | 'character' | 'object' | 'timeout' | 'fuse' | 'remote' | 'bounces'; characterId: number }
   | { type: 'Exploded'; tick: number; x: number; y: number; radius: number; damage: number; cause: 'weapon' | 'death' | 'object'; source: number }
   /** Pending damage was revealed (world settled). */
   | { type: 'DamageRevealed'; tick: number; total: number }
@@ -53,21 +55,39 @@ export type SimEvent =
   | { type: 'ObjectRemoved'; tick: number; id: number; reason: 'drowned' | 'lost' }
   | { type: 'MineArmed'; tick: number; id: number; fuse: number }
   | { type: 'MineDud'; tick: number; id: number; x: number; y: number }
-  | { type: 'CrateDropped'; tick: number; id: number; kind: 'health' | 'weapon'; x: number }
+  | { type: 'CrateDropped'; tick: number; id: number; kind: 'health' | 'weapon' | 'utility'; x: number }
   | { type: 'CrateLanded'; tick: number; id: number; x: number; y: number }
   /** `amount` = hp healed or ammo added; `weapon` = weapon index for weapon crates (−1 otherwise). */
-  | { type: 'CrateCollected'; tick: number; id: number; by: number; kind: 'health' | 'weapon'; amount: number; weapon: number }
+  | { type: 'CrateCollected'; tick: number; id: number; by: number; kind: 'health' | 'weapon' | 'utility'; amount: number; weapon: number }
   | { type: 'AmmoChanged'; tick: number; team: number; weapon: number; ammo: number }
   /** Telegraph: sudden death starts when the round clock runs out in `seconds`. */
   | { type: 'SuddenDeathSoon'; tick: number; seconds: number }
   /** A melee swing along `dir` (angle units); `hits` = character ids struck. */
   | { type: 'MeleeSwing'; tick: number; id: number; weapon: number; x: number; y: number; dir: number; hits: number[] }
+  // ---- full roster and utilities (M12)
+  /** A weapon placed a map object (mouse trap). */
+  | { type: 'ObjectDeployed'; tick: number; id: number; prop: string; by: number }
+  /** A utility was used; `x/y` = where (teleport destination, girder centre, tool start…). */
+  | { type: 'UtilityUsed'; tick: number; id: number; weapon: number; kind: UtilityKind; x: number; y: number }
+  /** A utility could not be used here (no ammo was spent). */
+  | { type: 'UtilityFailed'; tick: number; id: number; weapon: number; reason: 'blocked' | 'range' | 'water' }
+  /** A girder was placed from (x0, y0) to (x1, y1). */
+  | { type: 'GirderPlaced'; tick: number; x0: number; y0: number; x1: number; y1: number }
+  /** A parachute / jetpack / dig tool on a character switched on or off. */
+  | { type: 'GearChanged'; tick: number; id: number; gear: 'chute' | 'jet' | 'tool'; on: boolean }
+  // ---- grapple (M13)
+  | { type: 'RopeShot'; tick: number; id: number; shotsLeft: number }
+  | { type: 'RopeMissed'; tick: number; id: number }
+  | { type: 'RopeAttached'; tick: number; id: number; x: number; y: number }
+  | { type: 'RopeReleased'; tick: number; id: number }
+  | { type: 'RopeWrapped'; tick: number; id: number; x: number; y: number; pivots: number }
+  | { type: 'RopeUnwrapped'; tick: number; id: number; pivots: number }
   // ---- turn system (M7)
   | { type: 'TurnPhaseChanged'; tick: number; phase: 'turnPrep' | 'turnActive' | 'retreat' | 'settling' | 'damageReveal' | 'matchOver'; turn: number }
   /** A new turn: `team` plays with character `id`. */
   | { type: 'TurnStarted'; tick: number; turn: number; team: number; id: number }
   | { type: 'RetreatStarted'; tick: number; id: number; ticks: number }
-  | { type: 'ControlEnded'; tick: number; id: number; reason: 'timeout' | 'damage' | 'water' | 'retreatOver' | 'endTurn' }
+  | { type: 'ControlEnded'; tick: number; id: number; reason: 'timeout' | 'damage' | 'water' | 'retreatOver' | 'endTurn' | 'skip' }
   | { type: 'SuddenDeath'; tick: number; mode: 'hpToOne' | 'water' | 'both' | 'roundEnds' }
   | { type: 'WaterRose'; tick: number; y: number }
   /** `winner` = team id, −1 for a draw. */

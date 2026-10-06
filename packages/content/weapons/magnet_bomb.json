@@ -3,17 +3,46 @@
   "name": "Magnet Bomb",
   "category": "ballistic",
   "description": "Click a target, then throw: after a short flight the horseshoe magnet is pulled straight to it — wind or no wind.",
-  "input": { "mode": "targetCharge" },
-  "launch": { "speedMin": 2, "speedMax": 12, "chargeTicks": 60, "muzzleOffset": 12 },
+  "input": {
+    "mode": "targetCharge"
+  },
+  "launch": {
+    "speedMin": 2,
+    "speedMax": 12,
+    "chargeTicks": 60,
+    "muzzleOffset": 12
+  },
   "projectile": {
     "radius": 3,
     "gravityScale": 1,
     "windFactor": 1,
-    "homing": { "delaySeconds": 0.6, "durationSeconds": 3, "speed": 7, "turnDegrees": 6 },
-    "triggers": [{ "kind": "impact", "ignoreOwnerTicks": 8 }],
-    "payload": { "explosion": { "radius": 42, "damage": 45, "knockback": 1.0, "carve": true } },
+    "homing": {
+      "delaySeconds": 0.6,
+      "durationSeconds": 3,
+      "speed": 7,
+      "turnDegrees": 6
+    },
+    "triggers": [
+      {
+        "kind": "impact",
+        "ignoreOwnerTicks": 8
+      }
+    ],
+    "payload": {
+      "explosion": {
+        "radius": 42,
+        "damage": 40,
+        "knockback": 1.0,
+        "carve": true
+      }
+    },
     "maxLifeTicks": 1500
   },
-  "ammo": { "default": 2 },
-  "turn": { "endsTurn": true, "shotsPerTurn": 1 }
+  "ammo": {
+    "default": 2
+  },
+  "turn": {
+    "endsTurn": true,
+    "shotsPerTurn": 1
+  }
 }

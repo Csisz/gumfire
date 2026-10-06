@@ -16,7 +16,8 @@ import { launchVector } from './projectile.js';
 export const MELEE_UP_BIAS = 64;
 
 export function meleeSwing(attacker: Character, weaponIndex: number, def: WeaponDef, chars: readonly Character[], tick: number, events: SimEvent[]): number[] {
-  const dir = launchVector(attacker.aim, attacker.facing, SUB); // unit ×256, screen y down
+  const aim = def.meleeAngle >= 0 ? def.meleeAngle : attacker.aim; // uppercuts and shoves swing a fixed way
+  const dir = launchVector(aim, attacker.facing, SUB); // unit ×256, screen y down
   const hits: number[] = [];
   for (const c of chars) {
     if (c.id === attacker.id || c.state === 'dead' || c.state === 'drowning') continue;
@@ -36,7 +37,11 @@ export function meleeSwing(attacker: Character, weaponIndex: number, def: Weapon
     const up = Math.trunc((j * MELEE_UP_BIAS) / SUB);
     if (j > 0) throwCharacter(c, Math.trunc((dir.vx * j) / SUB), Math.trunc((dir.vy * j) / SUB) - up);
   }
-  const angle = attacker.facing >= 0 ? attacker.aim : HALF_TURN - attacker.aim;
+  if (def.meleeSelfLift > 0) {
+    // the attacker leaps with the swing (mostly upward, a little forward)
+    throwCharacter(attacker, Math.trunc((dir.vx * def.meleeSelfLift) / (4 * SUB)), -def.meleeSelfLift);
+  }
+  const angle = attacker.facing >= 0 ? aim : HALF_TURN - aim;
   events.push({ type: 'MeleeSwing', tick, id: attacker.id, weapon: weaponIndex, x: attacker.body.x >> 8, y: attacker.body.y >> 8, dir: angle, hits });
   return hits;
 }

@@ -1,0 +1,21 @@
+{
+  "id": "cocktail_umbrella",
+  "name": "Cocktail Umbrella",
+  "category": "utility",
+  "description": "While falling, press Fire to pop it open: a slow, wind-blown float down with no fall damage. \u2190 \u2192 steer.",
+  "input": {
+    "mode": "instant"
+  },
+  "utility": {
+    "kind": "parachute",
+    "fallSpeed": 1.2,
+    "windFactor": 1
+  },
+  "ammo": {
+    "default": 3
+  },
+  "turn": {
+    "endsTurn": false,
+    "shotsPerTurn": 1
+  }
+}

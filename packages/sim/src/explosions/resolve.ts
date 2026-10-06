@@ -17,7 +17,7 @@ export const SETTLE_TICKS = 10;
 export function worldInMotion(s: GameState): boolean {
   if (s.projectiles.length > 0 || s.pendingExplosions.length > 0 || s.fires.length > 0) return true;
   for (const c of s.characters) {
-    if (c.state === 'air' || c.state === 'drowning' || c.state === 'jumpPrep' || c.state === 'landing') return true;
+    if (c.state === 'air' || c.state === 'drowning' || c.state === 'jumpPrep' || c.state === 'landing' || c.state === 'tool' || c.state === 'rope') return true;
   }
   for (const b of s.bodies) if (!b.sleeping || b.drownTicks > 0) return true;
   for (const o of s.objects) if (objectInMotion(o)) return true;

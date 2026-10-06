@@ -1,6 +1,7 @@
 import { BufferImageSource, Container, Sprite, Texture } from 'pixi.js';
 import { CHUNK_SIZE, chunkRect, takeDirtyChunks, type TerrainState } from '@gumfire/sim';
 import { paintTerrainRect, PAINT_MARGIN, type TerrainTheme } from './terrainPaint.js';
+import { paintTerrainHD, type TerrainArt } from './terrainArt.js';
 
 interface ChunkGfx {
   source: BufferImageSource;
@@ -22,26 +23,34 @@ export class TerrainView {
   /** Chunk indices waiting for upload (overflow from earlier frames). */
   private readonly queue: number[] = [];
   private readonly queued: Uint8Array;
+  /** Output pixels per world pixel (1 = the flat painter; 2 = the HD textured painter). */
+  private readonly S: number;
 
   constructor(
     private readonly terrain: TerrainState,
     private readonly theme: TerrainTheme,
     private readonly uploadBudget = 24,
+    /** Textured HD painting (M15 art pass); omitted = the original flat painter. */
+    private readonly art?: TerrainArt,
   ) {
     this.container.label = 'terrain';
-    this.colors = new Uint8Array(terrain.width * terrain.height * 4);
+    this.S = art ? art.scale : 1;
+    const S = this.S;
+    this.colors = new Uint8Array(terrain.width * S * terrain.height * S * 4);
     this.original = terrain.mat.slice();
     this.queued = new Uint8Array(terrain.chunksX * terrain.chunksY);
     const t0 = performance.now();
-    paintTerrainRect(terrain, theme, this.colors, 0, 0, terrain.width - 1, terrain.height - 1, this.original);
+    this.paint(0, 0, terrain.width - 1, terrain.height - 1);
     this.paintMs = performance.now() - t0;
 
+    const C = CHUNK_SIZE * S;
     for (let i = 0; i < terrain.chunksX * terrain.chunksY; i++) {
-      const buffer = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * 4);
-      const source = new BufferImageSource({ resource: buffer, width: CHUNK_SIZE, height: CHUNK_SIZE, scaleMode: 'nearest', alphaMode: 'premultiply-alpha-on-upload' }); // painter writes straight alpha
+      const buffer = new Uint8Array(C * C * 4);
+      const source = new BufferImageSource({ resource: buffer, width: C, height: C, scaleMode: S > 1 ? 'linear' : 'nearest', alphaMode: 'premultiply-alpha-on-upload' }); // painter writes straight alpha
       const sprite = new Sprite(new Texture({ source }));
       const r = chunkRect(terrain, i);
       sprite.position.set(r.x0, r.y0);
+      sprite.scale.set(1 / S);
       this.container.addChild(sprite);
       this.chunks.push({ source, buffer, sprite });
       this.copyChunk(i);
@@ -71,7 +80,7 @@ export class TerrainView {
       this.queued[i] = 0;
       const r = chunkRect(this.terrain, i);
       // Repaint the chunk (the painter reads a margin around it, so crusts stay correct).
-      paintTerrainRect(this.terrain, this.theme, this.colors, r.x0, r.y0, r.x1, r.y1, this.original);
+      this.paint(r.x0, r.y0, r.x1, r.y1);
       this.copyChunk(i);
       this.chunks[i]!.source.update();
       done++;
@@ -101,15 +110,22 @@ export class TerrainView {
       }
   }
 
+  private paint(x0: number, y0: number, x1: number, y1: number): void {
+    if (this.art) paintTerrainHD(this.terrain, this.art, this.colors, x0, y0, x1, y1, this.original);
+    else paintTerrainRect(this.terrain, this.theme, this.colors, x0, y0, x1, y1, this.original);
+  }
+
   private copyChunk(i: number): void {
     const t = this.terrain;
+    const S = this.S;
     const r = chunkRect(t, i);
     const buf = this.chunks[i]!.buffer;
     buf.fill(0);
-    const rowBytes = (r.x1 - r.x0 + 1) * 4;
-    for (let y = r.y0; y <= r.y1; y++) {
-      const src = (y * t.width + r.x0) * 4;
-      buf.set(this.colors.subarray(src, src + rowBytes), (y - r.y0) * CHUNK_SIZE * 4);
+    const OW = t.width * S, C = CHUNK_SIZE * S;
+    const rowBytes = (r.x1 - r.x0 + 1) * S * 4;
+    for (let y = r.y0 * S; y < (r.y1 + 1) * S; y++) {
+      const src = (y * OW + r.x0 * S) * 4;
+      buf.set(this.colors.subarray(src, src + rowBytes), (y - r.y0 * S) * C * 4);
     }
   }
 

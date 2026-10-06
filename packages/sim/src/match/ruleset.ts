@@ -15,9 +15,16 @@ export interface RulesetJson {
   teamSize?: number;
   turnSeconds?: number;
   retreatSeconds?: number;
+  /** Retreat after a weapon used from the rope or jetpack, seconds (classic: longer). */
+  ropeRetreatSeconds?: number;
   /** Round time in seconds; counts only while a turn is active or retreating. 0 = no limit. */
   roundSeconds?: number;
   suddenDeath?: SuddenDeathMode;
+  /**
+   * Sudden death also starts once this many turns have been played (M19), so matches where
+   * nobody can reach anybody (CPUs walled in a cavern) still end. 0 = no turn limit.
+   */
+  roundTurns?: number;
   /** Water rise per turn in sudden death, px. */
   waterRisePx?: number;
   characterSelect?: CharacterSelect;
@@ -38,6 +45,8 @@ export interface RulesetJson {
   crateChance?: number;
   /** Share of crates that are health (the rest are weapons), 0..1. */
   healthCrateShare?: number;
+  /** Share of the non-health crates that hold a utility, 0..1. */
+  utilityCrateShare?: number;
   /** Warn this many seconds of round time before sudden death. */
   suddenDeathWarnSeconds?: number;
 }
@@ -47,8 +56,11 @@ export interface Ruleset {
   teamSize: number;
   turnTicks: number;
   retreatTicks: number;
+  ropeRetreatTicks: number;
   /** 0 = unlimited. */
   roundTicks: number;
+  /** 0 = no turn limit. */
+  roundTurns: number;
   suddenDeath: SuddenDeathMode;
   waterRise: number;
   characterSelect: CharacterSelect;
@@ -62,6 +74,7 @@ export interface Ruleset {
   /** per 1000 */
   crateChance: number;
   healthCrateShare: number;
+  utilityCrateShare: number;
   suddenDeathWarnTicks: number;
 }
 
@@ -71,7 +84,9 @@ export const DEFAULT_RULESET_JSON: Required<RulesetJson> = {
   teamSize: 4,
   turnSeconds: 45,
   retreatSeconds: 3,
+  ropeRetreatSeconds: 5,
   roundSeconds: 15 * 60,
+  roundTurns: 0,
   suddenDeath: 'both',
   waterRisePx: 20,
   characterSelect: 'sequential',
@@ -83,7 +98,8 @@ export const DEFAULT_RULESET_JSON: Required<RulesetJson> = {
   mines: 4,
   barrels: 3,
   crateChance: 0.35,
-  healthCrateShare: 0.6,
+  healthCrateShare: 0.4,
+  utilityCrateShare: 0.4,
   suddenDeathWarnSeconds: 30,
 };
 
@@ -109,7 +125,9 @@ export function compileRuleset(json: RulesetJson = {}): Ruleset {
     teamSize: Math.trunc(num('teamSize', j.teamSize, 1, 8)),
     turnTicks: secs('turnSeconds', j.turnSeconds, 1, 600),
     retreatTicks: secs('retreatSeconds', j.retreatSeconds, 0, 30),
+    ropeRetreatTicks: secs('ropeRetreatSeconds', j.ropeRetreatSeconds, 0, 30),
     roundTicks: secs('roundSeconds', j.roundSeconds, 0, 7200),
+    roundTurns: Math.trunc(num('roundTurns', j.roundTurns, 0, 9999)),
     suddenDeath: j.suddenDeath,
     waterRise: Math.trunc(num('waterRisePx', j.waterRisePx, 0, 200)),
     characterSelect: j.characterSelect,
@@ -122,6 +140,7 @@ export function compileRuleset(json: RulesetJson = {}): Ruleset {
     barrels: Math.trunc(num('barrels', j.barrels, 0, 30)),
     crateChance: Math.round(num('crateChance', j.crateChance, 0, 1) * 1000),
     healthCrateShare: Math.round(num('healthCrateShare', j.healthCrateShare, 0, 1) * 1000),
+    utilityCrateShare: Math.round(num('utilityCrateShare', j.utilityCrateShare, 0, 1) * 1000),
     suddenDeathWarnTicks: secs('suddenDeathWarnSeconds', j.suddenDeathWarnSeconds, 0, 600),
   };
 }
